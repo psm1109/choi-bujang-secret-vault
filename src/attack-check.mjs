@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step === 3) return runStep3Checks(config);
+  if (config.step === 3 || config.step === 4) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -68,5 +68,13 @@ async function runStep3Checks(config) {
   }
   results.push({ attackId: 'authenticated_a_crud', expected: '정상 A 로그인으로 추가·조회·수정·삭제, 삭제 후 GET 404',
     observed: '실제 배포 미실행; 로컬 가상 요청 시험만 통과. 실제 심판 판정 아님' });
+  if (config.step === 4) {
+    for (const [attackId, expected] of [
+      ['authenticated_b_crud', '정상 B의 자기 메모 CRUD'],
+      ['cross_owner_access', 'A/B의 상대 메모 GET·PUT·DELETE는 404'],
+      ['owner_transfer', 'PUT의 타인 owner_id는 403; POST는 검증된 ID로 저장'],
+      ['database_rls', 'authenticated는 자기 행만 CRUD; anon은 권한 없음'],
+    ]) results.push({ attackId, expected, observed: '미실행; 실제 계정·DB 정책 시험 및 심판 판정 미확인' });
+  }
   return results;
 }

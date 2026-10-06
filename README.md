@@ -1,18 +1,18 @@
 # BYTE BACK 방어전 시작 틀 R5
 
-## 현재 3단계 저장점: 진짜 로그인과 가상 메모 CRUD
+## 현재 4단계 저장점: API 소유자 검사와 학습 DB 최소 권한
 
-Supabase Auth 이메일·비밀번호 로그인·로그아웃을 지원합니다. 로그인 전에 자료를 조회하지 않으며 로그아웃하면 화면의 자료를 지웁니다. 서버는 기존 `src/verify-login.mjs`로 요청 토큰을 검증하고, 브라우저의 사용자 ID·역할을 신뢰하지 않습니다.
+Supabase Auth 이메일·비밀번호 로그인·로그아웃과 메모 추가·조회·수정·삭제를 지원합니다. 로그인 전에는 자료를 조회하지 않고 로그아웃하면 화면의 자료를 지웁니다. 서버는 `src/verify-login.mjs`로 토큰을 검증합니다.
 
-로그인 후 기존 가상 자료(`GET /api/notes?scope=shared`)와 내 메모(`GET /api/notes`)를 별도로 표시합니다. 기존 자료와 학습 DB를 보존했습니다. 내 메모 목록은 검증된 사용자 ID로 필터링합니다. `POST /api/notes`는 `{id,title,body}`를 받고 ID가 없으면 UUID를 생성하며, 서버 사용자 ID를 `owner_id`에 저장합니다. 단건 `GET·PUT·DELETE /api/notes/:id`를 지원하고 단건 GET은 `{id,title,body}`, 삭제 후 GET은 404입니다. 토큰 누락·검증 실패는 자료 없이 401, 서버 설정·DB 실패는 상세 정보 없이 503입니다.
+목록과 단건 조회·수정·삭제는 검증된 사용자 ID와 DB의 `owner_id`가 일치하는 행만 처리합니다. `scope=shared`도 본인 소유 행만 반환합니다. 추가는 본문·URL의 소유자를 신뢰하지 않고 검증된 ID로 저장합니다. 수정은 기존 행을 소유자로 제한하고 새 행 소유자도 검증된 ID로 고정하며, 타인 `owner_id` 제출은 403입니다. 타인·없는 메모의 단건 접근은 404, 인증 누락·실패는 401입니다. 단건 응답은 `{id,title,body}`, 수정 본문은 `{title,body}`입니다.
 
-**남은 약점:** 단건 조회·수정·삭제는 소유자를 검사하지 않습니다. B의 타인 메모 접근 결과는 4단계에서 기록합니다. 기존 서버 전용 키는 브라우저에 전달하지 않습니다.
+학습 DB의 `public.learning_notes`에 RLS와 소유자별 SELECT·INSERT·UPDATE·DELETE 정책 SQL을 제안했습니다. 사용자가 제공한 적용 후 권한 화면에서는 anon의 일곱 권한이 모두 false, authenticated의 CRUD 네 권한만 true였습니다. 실제 RLS 정책 설치·A/B DB 접근은 직접 확인하지 않았습니다. 서버 전용 키를 사용하는 앱 API는 API 소유자 검사로 보호하며 DB RLS만으로 보호된다고 간주하지 않습니다. 기존 가상 메모와 학습 DB는 보존했습니다.
 
-다시 실행: `npm run build -- --local`로 정적 빌드, `node --test --test-isolation=none test/notes-api.test.mjs test/r5.test.mjs`로 로컬 가상 요청을 확인합니다. 배포는 Vercel의 **Settings → Environment Variables**에 기존 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`를 직접 등록하고 **Deployments → Redeploy**를 사용합니다. 화면에서 **로그인 → 추가 → 수정·저장 → 삭제**를 확인하세요. 주소창에서 API를 열면 Authorization 헤더가 없어 401인 것이 정상입니다.
+다시 실행: `npm run build -- --local`로 정적 빌드, `node --test --test-isolation=none test/notes-api.test.mjs test/r5.test.mjs`로 로컬 가상 요청을 확인합니다. 배포는 Vercel의 Settings → Environment Variables에서 기존 서버 설정을 유지하고 Deployments → Redeploy를 사용합니다. 화면에서 A/B 각각 로그인 → 추가 → 수정·저장 → 삭제를 확인합니다. 자기 메모 CRUD는 허용, 상대 메모 GET·PUT·DELETE는 404, 소유자 변경 PUT은 403이어야 합니다.
 
-설정의 실제 서비스 주소는 https://choi-bujang-secret-vault-henna.vercel.app/ 입니다. 발급자·공개키 주소·대상과 실제 API 경로는 `aleph.config.json`에 기록했습니다. 로컬 CRUD·인증 거부·기존 자료 조회 시험은 통과했으며, 실제 계정 CRUD·새 커밋 배포·심판 판정은 미확인입니다. `npm run bundle`은 현재 서비스 주소에 비로그인 자기 점검을 보내 상태 코드만 기록하고, 정상 A의 실제 배포 시험은 미실행으로 남깁니다. 새 커밋을 푸시하지 않으므로 자기 점검 대상 배포가 이 저장점과 같다고 간주하지 않습니다.
+실제 서비스 주소는 https://choi-bujang-secret-vault-henna.vercel.app/ 입니다. 설정의 발급자·공개키 주소·대상과 허용 경로는 구현과 대조했습니다. 로컬 가상 요청 시험은 통과했으며 실제 계정 시험·저장점 배포·심판 판정은 미확인입니다. `npm run bundle`은 실제 배포의 비로그인 응답 상태만 기록하고, A/B CRUD·상대 접근·소유자 변경·DB RLS 시험은 미실행으로 남깁니다. 저장점을 푸시하지 않으므로 배포와 저장점이 같다고 간주하지 않습니다.
 
-원본 `data.json`은 빈 목록이며 빌드가 `public/data.json`을 제거합니다. 이관 SQL은 Git에서 제외된 로컬 파일에 보존합니다. 다음 검색 절차는 현재 정적 파일 노출 확인용이며, 뒤의 1단계 내용은 과거 시작 기록입니다.
+원본 `data.json`은 빈 목록이며 빌드가 `public/data.json`을 제거합니다. 이관 SQL은 Git에서 제외된 로컬 파일에 보존합니다. 아래 1단계 내용은 과거 시작 기록입니다.
 
 ## 현재 파일의 가상 메모 문장 검색 절차
 

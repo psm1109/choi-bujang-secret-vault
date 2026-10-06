@@ -3,4 +3,5 @@ bundle-notes.json
 .env
 .env.*
 node_modules/
+public/aleph.json
 sql/step-2-learning-notes.local.sql

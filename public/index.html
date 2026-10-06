@@ -72,7 +72,26 @@
     };
     const myList = document.querySelector('#notes');
     const myHeading = document.querySelector('#my-notes-heading');
-    let supabase;
+    const authRequest = async (action, payload = {}) => {
+      const response = await fetch(`/api/auth?action=${action}`, {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        if (response.status === 401) renderSession(null);
+        throw new Error(response.status === 401 ? '이메일·비밀번호 또는 로그인 상태를 확인해 주세요.' : '로그인 서버에 연결할 수 없습니다.');
+      }
+      return (await response.json()).session;
+    };
+    let sessionRequest = null;
+    const getSession = async () => {
+      if (currentSession?.expires_at > Date.now() / 1000 + 60) return currentSession;
+      sessionRequest ??= authRequest('session').finally(() => { sessionRequest = null; });
+      const session = await sessionRequest;
+      renderSession(session);
+      return session;
+    };
     const editor = document.querySelector('#note-editor');
     const noteForm = document.querySelector('#note-form');
     const noteTitle = document.querySelector('#note-title');
@@ -174,8 +193,11 @@
     const refreshNotes = () => {
       notesRequest?.abort();
       if (!currentSession?.access_token) return;
-      notesRequest = new AbortController();
-      void loadNotes(notesRequest, currentSession.access_token);
+      void getSession().then(session => {
+        if (!session) return;
+        notesRequest = new AbortController();
+        return loadNotes(notesRequest, session.access_token);
+      }).catch(error => { noteMessage.textContent = error.message; });
     };
     const runNoteAction = async action => {
       if (mutationBusy) return;
@@ -183,12 +205,12 @@
       const version = sessionVersion;
       noteMessage.textContent = '';
       try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error || !data.session || version !== sessionVersion) throw new Error('다시 로그인해 주세요.');
+        const session = await getSession();
+        if (!session || version !== sessionVersion) throw new Error('다시 로그인해 주세요.');
         const request = async (path, method = 'GET', payload) => {
           const response = await fetch(path, {
             method, cache: 'no-store',
-            headers: { Authorization: `Bearer ${data.session.access_token}`,
+            headers: { Authorization: `Bearer ${session.access_token}`,
               ...(payload ? { 'Content-Type': 'application/json' } : {}) },
             ...(payload ? { body: JSON.stringify(payload) } : {}),
           });
@@ -218,26 +240,17 @@
       });
     });
     try {
-      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.117.2');
-      supabase = createClient(
-        'https://qmajefmoszjutqxwdnzf.supabase.co',
-        'sb_publishable_21tF_VQTvj02I-GYrDuuzQ_ew2S474r',
-      );
-      supabase.auth.onAuthStateChange((_event, session) => renderSession(session));
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      renderSession(data.session);
+      try { renderSession(await authRequest('session')); }
+      catch (error) { renderSession(null); showError(error.message); }
       setBusy(false);
       form.addEventListener('submit', async event => {
         event.preventDefault();
         showError('');
         setBusy(true);
         try {
-          const { data, error } = await supabase.auth.signInWithPassword({
+          renderSession(await authRequest('login', {
             email: email.value.trim(), password: password.value,
-          });
-          if (error) throw error;
-          renderSession(data.session);
+          }));
         } catch (error) {
           showError(`로그인 실패: ${error.message || '로그인 서버에 연결할 수 없습니다.'}`);
         } finally {
@@ -249,8 +262,8 @@
         showError('');
         setBusy(true);
         try {
-          const { error } = await supabase.auth.signOut({ scope: 'local' });
-          if (error) throw error;
+          await sessionRequest;
+          await authRequest('logout');
           renderSession(null);
         } catch (error) {
           showError(`로그아웃 실패: ${error.message || '로그인 서버에 연결할 수 없습니다.'}`);
@@ -260,7 +273,8 @@
       });
     } catch (error) {
       status.textContent = '로그인을 준비하지 못했습니다.';
-      showError(`로그인 준비 실패: ${error.message || 'SDK 또는 로그인 서버 연결을 확인해 주세요.'}`);
+      showError(`로그인 준비 실패: ${error.message || '로그인 서버 연결을 확인해 주세요.'}`);
+      setBusy(false);
     }
   </script>
 </body>

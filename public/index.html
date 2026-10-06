@@ -16,6 +16,13 @@
     li { border: 1px solid #51667c; border-radius: 14px; padding: 17px 19px; background: #1a2a3d; }
     strong { display: block; font-size: 18px; margin-bottom: 5px; }
     li span { color: #bfd0e5; }
+    .auth { margin: 26px 0; padding: 20px; border: 1px solid #51667c; border-radius: 14px; background: #1a2a3d; }
+    label { display: block; margin-bottom: 14px; }
+    input { display: block; box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; border: 1px solid #51667c; border-radius: 8px; background: #101a28; color: #ecf4ff; font: inherit; }
+    button { padding: 12px 20px; border: 0; border-radius: 8px; background: #8ad8df; color: #101a28; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    [hidden] { display: none !important; }
+    #auth-message { color: #ffe3e8; }
   </style>
 </head>
 <body>
@@ -24,6 +31,17 @@
     <h1>점령된 자료실</h1>
     <p>지금은 보호 장치가 없는 상태입니다. 아래 기록은 모두 실습을 위해 만든 가상 자료입니다.</p>
     <div class="notice">로그인하지 않은 방문자도 자료를 볼 수 있습니다. 공개 범위를 확인하고, 다음 제작 단계에서 접근을 차례로 막아 주세요.</div>
+    <section class="auth" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">자료실 로그인</h2>
+      <p id="auth-status" role="status">로그인을 준비하는 중입니다.</p>
+      <form id="login-form">
+        <label for="email">이메일<input id="email" name="email" type="email" autocomplete="username" required></label>
+        <label for="password">비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+        <button id="login-button" type="submit" disabled>로그인</button>
+      </form>
+      <button id="logout-button" type="button" hidden disabled>로그아웃</button>
+      <p id="auth-message" role="alert" hidden></p>
+    </section>
     <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
   </main>
   <script type="module">
@@ -46,6 +64,74 @@
       const item = document.createElement('li');
       item.textContent = error.message;
       list.replaceChildren(item);
+    }
+  </script>
+  <script type="module">
+    const form = document.querySelector('#login-form');
+    const email = document.querySelector('#email');
+    const password = document.querySelector('#password');
+    const login = document.querySelector('#login-button');
+    const logout = document.querySelector('#logout-button');
+    const status = document.querySelector('#auth-status');
+    const message = document.querySelector('#auth-message');
+    const showError = text => {
+      message.textContent = text;
+      message.hidden = !text;
+    };
+    const setBusy = busy => {
+      email.disabled = password.disabled = login.disabled = logout.disabled = busy;
+    };
+    const renderSession = session => {
+      const signedIn = Boolean(session?.user);
+      form.hidden = signedIn;
+      logout.hidden = !signedIn;
+      status.textContent = signedIn ? '로그인되었습니다.' : '이메일과 비밀번호로 로그인해 주세요.';
+      if (signedIn) password.value = '';
+    };
+    try {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.117.2');
+      const supabase = createClient(
+        'https://qmajefmoszjutqxwdnzf.supabase.co',
+        'sb_publishable_21tF_VQTvj02I-GYrDuuzQ_ew2S474r',
+      );
+      supabase.auth.onAuthStateChange((_event, session) => renderSession(session));
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      renderSession(data.session);
+      setBusy(false);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        showError('');
+        setBusy(true);
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.value.trim(), password: password.value,
+          });
+          if (error) throw error;
+          renderSession(data.session);
+        } catch (error) {
+          showError(`로그인 실패: ${error.message || '로그인 서버에 연결할 수 없습니다.'}`);
+        } finally {
+          password.value = '';
+          setBusy(false);
+        }
+      });
+      logout.addEventListener('click', async () => {
+        showError('');
+        setBusy(true);
+        try {
+          const { error } = await supabase.auth.signOut({ scope: 'local' });
+          if (error) throw error;
+          renderSession(null);
+        } catch (error) {
+          showError(`로그아웃 실패: ${error.message || '로그인 서버에 연결할 수 없습니다.'}`);
+        } finally {
+          setBusy(false);
+        }
+      });
+    } catch (error) {
+      status.textContent = '로그인을 준비하지 못했습니다.';
+      showError(`로그인 준비 실패: ${error.message || 'SDK 또는 로그인 서버 연결을 확인해 주세요.'}`);
     }
   </script>
 </body>

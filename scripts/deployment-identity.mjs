@@ -4,6 +4,17 @@ const SHA = /^[a-f0-9]{40}$/iu;
 const HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/iu;
 
 export function deploymentIdentity(env, config) {
+  if (config?.step >= 5) {
+    let original;
+    try { original = new URL(config.originalApiUrl); } catch {
+      throw new Error('originalApiUrl에 쿼리 없는 원본 자료 HTTPS 경로를 적어 주세요.');
+    }
+    if (original.protocol !== 'https:' || original.username || original.password
+        || original.search || original.hash || original.href.includes('?')
+        || original.href.includes('#')) {
+      throw new Error('originalApiUrl에 쿼리 없는 원본 자료 HTTPS 경로를 적어 주세요.');
+    }
+  }
   const owner = env.VERCEL_GIT_REPO_OWNER;
   const repo = env.VERCEL_GIT_REPO_SLUG;
   const commit = env.VERCEL_GIT_COMMIT_SHA;
@@ -11,7 +22,7 @@ export function deploymentIdentity(env, config) {
   if (env.VERCEL_GIT_PROVIDER !== 'github' || !OWNER.test(owner || '')
       || !REPO.test(repo || '') || repo === '.' || repo === '..'
       || repo.toLowerCase().endsWith('.git') || !SHA.test(commit || '')
-      || !HOST.test(host || '') || !Number.isInteger(config?.step) || config.step < 1 || config.step > 4
+      || !HOST.test(host || '') || !Number.isInteger(config?.step) || config.step < 1 || config.step > 5
       || typeof config.judgeIssuer !== 'string'
       || !/^https:\/\/[a-z0-9-]+\.up\.railway\.app\/defense\/judge$/iu.test(config.judgeIssuer)
       || typeof config.sampleMarker !== 'string'
@@ -26,5 +37,6 @@ export function deploymentIdentity(env, config) {
     publicAppUrl: `https://${host.toLowerCase()}`,
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
+    ...(config.step >= 5 ? { originalApiUrl: config.originalApiUrl } : {}),
   };
 }

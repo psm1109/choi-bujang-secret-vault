@@ -1,6 +1,16 @@
 # BYTE BACK 방어전 시작 틀 R5
 
-## 현재 4단계 저장점: API 소유자 검사와 학습 DB 최소 권한
+## 현재 5단계 저장점: 자료 요청을 서버 함수로 통합
+
+브라우저의 메모 읽기·추가·수정·삭제는 기존 서버 함수 `/api/notes`와 `/api/notes/:id`를 호출하며 Supabase 자료 직접 호출은 없습니다. Supabase Auth 호출과 서버의 로그인·소유자 검사 및 서버 전용 설정은 유지했습니다. `aleph.config.json`은 단계 5이며 `originalApiUrl`은 쿼리 없는 HTTPS 원본 `/rest/v1/learning_notes` 주소입니다. `judgeIssuer`, 로그인 발급자·공개키 주소·대상, 허용 경로는 기존 구현과 일치하며 유지했습니다. 판정기의 `starter.deny`는 현재 구현된 기본 거부 규칙입니다.
+
+사용자가 제공한 적용 후 권한 화면에서는 anon·authenticated의 모든 테이블 권한과 해당 열 권한이 false이고 service_role CRUD는 true였습니다. PUBLIC 직접 권한 결과, 원본 API 직접 접근 및 실제 A 화면 CRUD는 직접 확인하지 않았습니다. 로컬 가상 A/B CRUD 시험은 통과했으며 실제 심판 판정이 아닙니다. 기존 가상 메모와 학습 DB는 보존했습니다.
+
+다시 실행: `npm run build -- --local`로 정적 빌드, `node --test --test-isolation=none test/notes-api.test.mjs test/r5.test.mjs`로 로컬 가상 요청을 확인합니다. 자료실에서 A 로그인 → 추가 → 조회 → 수정·저장 → 삭제가 정상이어야 합니다. 비로그인 서버 API는 401, 타인 메모 접근은 404, 타인 소유자 지정 PUT은 403, anon·authenticated의 원본 자료 직접 접근은 권한 오류여야 합니다.
+
+서비스 주소는 https://choi-bujang-secret-vault-henna.vercel.app/ 입니다. 이번 저장점은 푸시·배포하지 않으므로 현재 배포와 저장점 커밋이 같다고 간주하지 않습니다. `npm run bundle`은 실제 배포에 보낸 비로그인 요청의 HTTP 상태만 기록하며 실제 A/B CRUD·상대 접근·소유자 변경·DB 정책·원본 API 직접 접근은 미실행으로 남깁니다. 제출 JSON과 로컬 설명 파일은 Git에서 제외합니다.
+
+## 과거 4단계 저장점: API 소유자 검사와 학습 DB 최소 권한
 
 Supabase Auth 이메일·비밀번호 로그인·로그아웃과 메모 추가·조회·수정·삭제를 지원합니다. 로그인 전에는 자료를 조회하지 않고 로그아웃하면 화면의 자료를 지웁니다. 서버는 `src/verify-login.mjs`로 토큰을 검증합니다.
 

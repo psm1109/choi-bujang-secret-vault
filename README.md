@@ -1,5 +1,19 @@
 # BYTE BACK 방어전 시작 틀 R5
 
+## 현재 2단계: 자료를 코드 밖으로 이동
+
+`/` 화면은 Vercel 서버 함수 `/api/notes`를 호출합니다. 함수는 Supabase의 `public.learning_notes`에서 제목과 본문만 조회합니다. 이관 SQL은 로컬 `sql/step-2-learning-notes.local.sql`에 있으며 Git에서 제외됩니다. 원본 및 공개 `data.json`은 빈 목록이므로 정적 빌드에 메모를 넣지 않습니다.
+
+먼저 Supabase SQL Editor에서 이관 SQL을 실행하세요. Vercel 프로젝트의 **Settings → Environment Variables**에서 `SUPABASE_URL`과 서버 전용 `SUPABASE_SECRET_KEY`를 필요한 배포 환경에 등록하고 **Deployments → Redeploy**를 누르세요. 실제 값은 공식 설정 화면의 비밀 입력란에 직접 넣으며 브라우저 파일·Git·응답·로그에 넣지 않습니다.
+
+배포 후 `/`에서 가상 메모 네 건이 표시되어야 합니다. `/data.json`은 빈 목록이어야 하며, Supabase에 대한 `anon`·`authenticated`의 직접 조회는 거부되어야 합니다. 서버 함수는 GET만 지원하고 다른 메서드는 405, 환경변수 누락이나 DB 조회 실패는 상세 정보 없이 503을 반환합니다.
+
+**남은 약점:** `/api/notes`는 아직 로그인 검증이 없는 공개 주소입니다. 비로그인 방문자도 함수를 직접 호출해 메모를 읽을 수 있습니다. 서버 전용 키는 RLS를 우회하므로 DB의 RLS만으로 이 공개 함수를 보호할 수 없습니다. 인증은 다음 단계에서 추가합니다.
+
+로컬 정적 빌드 확인: `npm run build -- --local`. 이 명령은 서버 함수를 실행하지 않으며 DB 연결·Vercel 배포를 증명하지 않습니다. 기존 설정과 자기 점검은 아직 1단계 기준이며, 아래 내용은 1단계 시작 기록입니다.
+
+## 1단계 시작 기록
+
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 포함된 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
 ## 학생이 하는 일: 세 걸음

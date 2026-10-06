@@ -62,14 +62,16 @@
     const list = document.querySelector('#notes');
     let visibleUserId = null;
     let notesRequest = null;
-    const loadNotes = async controller => {
+    const loadNotes = async (controller, accessToken) => {
       const loading = document.createElement('li');
       loading.textContent = '가상 자료를 불러오는 중입니다.';
       list.replaceChildren(loading);
       try {
         const response = await fetch('/api/notes', {
           cache: 'no-store', signal: controller.signal,
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
+        if (response.status === 401) throw new Error('로그인 확인에 실패했습니다. 다시 로그인해 주세요.');
         if (!response.ok) throw new Error('자료를 불러올 수 없습니다. 서버 설정을 확인해 주세요.');
         const data = await response.json();
         if (controller.signal.aborted) return;
@@ -91,7 +93,7 @@
       }
     };
     const renderSession = session => {
-      const signedIn = Boolean(session?.user);
+      const signedIn = Boolean(session?.user && session?.access_token);
       form.hidden = signedIn;
       logout.hidden = !signedIn;
       list.hidden = !signedIn;
@@ -105,7 +107,7 @@
         visibleUserId = userId;
         if (signedIn) {
           notesRequest = new AbortController();
-          void loadNotes(notesRequest);
+          void loadNotes(notesRequest, session.access_token);
         }
       }
     };

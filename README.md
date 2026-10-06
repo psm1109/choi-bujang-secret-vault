@@ -2,11 +2,11 @@
 
 ## 현재 5단계 저장점: 자료 요청을 서버 함수로 통합
 
-브라우저의 메모 읽기·추가·수정·삭제는 기존 서버 함수 `/api/notes`와 `/api/notes/:id`를 호출하며 Supabase 자료 직접 호출은 없습니다. Supabase Auth 호출과 서버의 로그인·소유자 검사 및 서버 전용 설정은 유지했습니다. `aleph.config.json`은 단계 5이며 `originalApiUrl`은 쿼리 없는 HTTPS 원본 `/rest/v1/learning_notes` 주소입니다. `judgeIssuer`, 로그인 발급자·공개키 주소·대상, 허용 경로는 기존 구현과 일치하며 유지했습니다. 판정기의 `starter.deny`는 현재 구현된 기본 거부 규칙입니다.
+브라우저의 메모 읽기·추가·수정·삭제는 기존 서버 함수 `/api/notes`와 `/api/notes/:id`를 호출하며 Supabase 자료 직접 호출은 없습니다. 로그인·세션 복원·갱신·로그아웃은 `/api/auth`를 거치며 화면의 Supabase 공개 키와 SDK는 제거했습니다. 갱신 토큰은 HttpOnly·Secure·SameSite=Strict 쿠키에 보관하고 서버는 기존 서버 전용 설정을 사용합니다. 메모 API의 로그인·소유자 검사는 유지했습니다. `aleph.config.json`은 단계 5이며 `originalApiUrl`은 쿼리 없는 HTTPS 원본 `/rest/v1/learning_notes` 주소입니다. 배포 빌드는 `public/aleph.json`에 원본 API 주소와 허용 자료 경로 6개를 포함합니다. 첫 화면에는 `X-Content-Type-Options: nosniff`를 설정합니다. `judgeIssuer`, 로그인 발급자·공개키 주소·대상, 허용 경로는 기존 구현과 일치하며 유지했습니다. 판정기의 `starter.deny`는 현재 구현된 기본 거부 규칙입니다.
 
 사용자가 제공한 적용 후 권한 화면에서는 anon·authenticated의 모든 테이블 권한과 해당 열 권한이 false이고 service_role CRUD는 true였습니다. PUBLIC 직접 권한 결과, 원본 API 직접 접근 및 실제 A 화면 CRUD는 직접 확인하지 않았습니다. 로컬 가상 A/B CRUD 시험은 통과했으며 실제 심판 판정이 아닙니다. 기존 가상 메모와 학습 DB는 보존했습니다.
 
-다시 실행: `npm run build -- --local`로 정적 빌드, `node --test --test-isolation=none test/notes-api.test.mjs test/r5.test.mjs`로 로컬 가상 요청을 확인합니다. 자료실에서 A 로그인 → 추가 → 조회 → 수정·저장 → 삭제가 정상이어야 합니다. 비로그인 서버 API는 401, 타인 메모 접근은 404, 타인 소유자 지정 PUT은 403, anon·authenticated의 원본 자료 직접 접근은 권한 오류여야 합니다.
+다시 실행: `npm run build -- --local`로 정적 빌드, `node --test --test-isolation=none test/auth-api.test.mjs test/notes-api.test.mjs test/r5.test.mjs`로 로컬 가상 요청을 확인합니다. Vercel Settings → Environment Variables에서 기존 서버 설정을 유지하고 변경 커밋을 배포한 뒤 Deployments → Visit에서 A 로그인 → 추가 → 조회 → 수정·저장 → 삭제 → 새로고침 → 로그아웃을 확인합니다. 자기 메모 CRUD와 세션 복원이 정상이어야 합니다. 잘못된 비밀번호·비로그인 자료 요청은 401, 타인 메모 접근은 404, 타인 소유자 지정 PUT은 403, 다른 출처의 인증 요청은 403, anon·authenticated의 원본 자료 직접 접근은 권한 오류여야 합니다.
 
 서비스 주소는 https://choi-bujang-secret-vault-henna.vercel.app/ 입니다. 이번 저장점은 푸시·배포하지 않으므로 현재 배포와 저장점 커밋이 같다고 간주하지 않습니다. `npm run bundle`은 실제 배포에 보낸 비로그인 요청의 HTTP 상태만 기록하며 실제 A/B CRUD·상대 접근·소유자 변경·DB 정책·원본 API 직접 접근은 미실행으로 남깁니다. 제출 JSON과 로컬 설명 파일은 Git에서 제외합니다.
 

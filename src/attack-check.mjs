@@ -50,6 +50,33 @@ async function runStep3Checks(config) {
     ['anonymous_note_delete', 'DELETE', `/api/notes/${id}`, 401],
   ];
   const results = [];
+  if (config.step === 5) {
+    for (const path of ['/aleph.json', '/']) {
+      try {
+        const response = await fetch(new URL(path, app), {
+          redirect: 'error', signal: AbortSignal.timeout(5000), cache: 'no-store',
+        });
+        if (path === '/aleph.json') {
+          const data = await response.json();
+          const matches = response.ok && data.originalApiUrl === config.originalApiUrl
+            && JSON.stringify(data.allowedRoutes) === JSON.stringify(config.allowedRoutes);
+          results.push({ attackId: 'deployment_config',
+            expected: '배포 설정에 쿼리 없는 원본 HTTPS 주소와 허용 자료 경로 6개 포함',
+            observed: `실제 GET /aleph.json HTTP ${response.status}; 설정 ${matches ? '일치' : '불일치'}; 배포 커밋 ${/^[a-f0-9]{40}$/iu.test(data.commit ?? '') ? data.commit : '미확인'}` });
+        } else {
+          const html = await response.text();
+          results.push({ attackId: 'security_header', expected: '첫 화면 X-Content-Type-Options: nosniff',
+            observed: `실제 GET / HTTP ${response.status}; nosniff ${response.ok && response.headers.get('x-content-type-options') === 'nosniff' ? '확인' : '미확인'}` });
+          results.push({ attackId: 'browser_public_key', expected: '첫 화면 코드에 Supabase 공개 키·anon JWT·SDK 없음',
+            observed: `실제 GET / HTTP ${response.status}; ${response.ok && !/sb_publishable_|eyJ[A-Za-z0-9_-]{12,}\.eyJ[A-Za-z0-9_-]{12,}\.|@supabase\/supabase-js/u.test(html) ? '검사 패턴 없음' : '조건 미충족'}; 응답 본문 미기록` });
+        }
+      } catch {
+        results.push({ attackId: path === '/aleph.json' ? 'deployment_config' : 'first_page_checks',
+          expected: path === '/aleph.json' ? '배포 설정의 원본 API 주소·허용 경로 확인' : '첫 화면 보안 헤더·공개 키 부재 확인',
+          observed: '요청 시도했으나 응답 확인 실패; 미확인' });
+      }
+    }
+  }
   for (const [attackId, method, path, expectedStatus] of checks) {
     let observed;
     try {

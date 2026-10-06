@@ -57,9 +57,13 @@ export default async function handler(request, response) {
           .json({ error: error.code === '23505' ? 'NOTE_EXISTS' : 'NOTES_UNAVAILABLE' });
         return response.status(201).json({ id: createdId });
       }
-      // 3단계: ID만으로 수정합니다. 소유자 검사는 4단계에서 추가합니다.
+      if (Object.hasOwn(payload, 'owner_id') && payload.owner_id !== identity.userId) {
+        return response.status(403).json({ error: 'FORBIDDEN' });
+      }
+      // 기존 행을 소유자로 제한하고 새 행의 소유자도 검증된 ID로 고정합니다.
       const { data, error } = await supabase.from('learning_notes')
-        .update({ title: payload.title, content: payload.body }).eq('id', id)
+        .update({ title: payload.title, content: payload.body, owner_id: identity.userId })
+        .eq('id', id).eq('owner_id', identity.userId)
         .select('id,title,content').maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
       if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
@@ -67,22 +71,22 @@ export default async function handler(request, response) {
     }
     if (request.method === 'DELETE') {
       const { data, error } = await supabase.from('learning_notes').delete()
-        .eq('id', id).select('id').maybeSingle();
+        .eq('id', id).eq('owner_id', identity.userId).select('id').maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
       if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
       return response.status(200).json({ id: data.id });
     }
     if (id !== undefined) {
       const { data, error } = await supabase.from('learning_notes')
-        .select('id,title,content').eq('id', id).maybeSingle();
+        .select('id,title,content').eq('id', id).eq('owner_id', identity.userId).maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
       if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
       return response.status(200).json(noteResponse(data));
     }
     const scope = request.query?.scope;
     if (scope !== undefined && scope !== 'shared') return response.status(400).json({ error: 'INVALID_SCOPE' });
-    let query = supabase.from('learning_notes').select('id,title,content');
-    query = scope === 'shared' ? query.is('owner_id', null) : query.eq('owner_id', identity.userId);
+    const query = supabase.from('learning_notes').select('id,title,content')
+      .eq('owner_id', identity.userId);
     const { data, error } = await query.order('title');
     if (error || !Array.isArray(data)) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
     return response.status(200).json(data.map(noteResponse));

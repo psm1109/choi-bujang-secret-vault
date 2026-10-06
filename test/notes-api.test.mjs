@@ -4,7 +4,7 @@ import { generateKeyPair, exportJWK, SignJWT } from 'jose';
 import { readFileSync } from 'node:fs';
 import handler from '../api/notes.js';
 
-test('A can manage notes while anonymous requests are denied and existing shared notes remain readable', async () => {
+test('A and B can manage only their own notes and cannot transfer ownership', async () => {
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.SUPABASE_URL;
   const originalKey = process.env.SUPABASE_SECRET_KEY;
@@ -27,13 +27,14 @@ test('A can manage notes while anonymous requests are denied and existing shared
       .setProtectedHeader({ alg: 'ES256', kid: 'notes-test' })
       .setIssuer(claims.iss ?? config.identityProvider.issuer)
       .setAudience(claims.aud ?? config.identityProvider.audience)
-      .setSubject('00000000-0000-4000-8000-000000000001')
+      .setSubject(claims.sub ?? '00000000-0000-4000-8000-000000000001')
       .setIssuedAt().setExpirationTime(claims.exp ?? '5m').sign(key);
     const authorization = `Bearer ${await sign()}`;
     process.env.SUPABASE_SECRET_KEY = 'test-only-placeholder';
     let calls = 0;
     const ownerA = '00000000-0000-4000-8000-000000000001';
     const ownerB = '00000000-0000-4000-8000-000000000003';
+    const authorizationB = `Bearer ${await sign({ sub: ownerB })}`;
     const sharedId = '00000000-0000-4000-8000-000000000009';
     const sharedNote = { id: sharedId, title: 'Shared fixture', content: 'Synthetic shared fixture', owner_id: null };
     const rows = new Map([[sharedId, sharedNote]]);
@@ -51,23 +52,25 @@ test('A can manage notes while anonymous requests are denied and existing shared
         status: 503, headers: { 'content-type': 'application/json' },
       });
       const id = url.searchParams.get('id')?.slice(3);
+      const owner = url.searchParams.get('owner_id');
+      const matched = rows.get(id)?.owner_id === owner?.slice(3) ? rows.get(id) : undefined;
       let result;
       if (options.method === 'POST') {
         const row = JSON.parse(options.body);
-        assert.equal(row.owner_id, ownerA);
+        assert.ok(row.owner_id === ownerA || row.owner_id === ownerB);
         if (rows.has(row.id)) return new Response(JSON.stringify({ code: '23505' }), { status: 409 });
         rows.set(row.id, row); result = null;
       } else if (options.method === 'PATCH') {
-        const row = rows.get(id);
+        const row = matched;
         const payload = JSON.parse(options.body);
-        assert.equal('owner_id' in payload, false);
+        assert.equal(payload.owner_id, owner?.slice(3));
         if (row) Object.assign(row, payload);
         result = row ? [row] : [];
       } else if (options.method === 'DELETE') {
-        result = rows.has(id) ? [{ id }] : [];
-        rows.delete(id);
+        result = matched ? [{ id }] : [];
+        if (matched) rows.delete(id);
       } else if (id) {
-        result = rows.has(id) ? [rows.get(id)] : [];
+        result = matched ? [matched] : [];
       } else {
         const owner = url.searchParams.get('owner_id');
         assert.ok(owner === `eq.${ownerA}` || owner === `eq.${ownerB}` || owner === 'is.null');
@@ -115,11 +118,33 @@ test('A can manage notes while anonymous requests are denied and existing shared
     const suppliedId = '00000000-0000-4000-8000-000000000004';
     assert.deepEqual((await call('POST', authorization, { body: { id: suppliedId, title: 'Provided', body: '' } })).body, { id: suppliedId });
     const changed = await call('PUT', authorization, { query: { id }, body: {
-      title: 'Changed by A', body: 'Updated synthetic fixture', owner_id: ownerB,
+      title: 'Changed by A', body: 'Updated synthetic fixture',
     } });
     assert.equal(changed.status, 200);
     assert.deepEqual(changed.body, { id, title: 'Changed by A', body: 'Updated synthetic fixture' });
     assert.equal(rows.get(id).owner_id, ownerA);
+    assert.equal((await call('PUT', authorization, { query: { id }, body: {
+      title: 'Transfer attempt', body: '', owner_id: ownerB,
+    } })).status, 403);
+    const bPost = await call('POST', authorizationB, { query: { owner_id: ownerA }, body: {
+      title: 'B fixture', body: '', owner_id: ownerA,
+    } });
+    assert.equal(bPost.status, 201);
+    const bId = bPost.body.id;
+    assert.equal(rows.get(bId).owner_id, ownerB);
+    for (const [token, foreignId] of [[authorization, bId], [authorizationB, id]]) {
+      for (const method of ['GET', 'PUT', 'DELETE']) {
+        assert.equal((await call(method, token, { query: { id: foreignId, owner_id: ownerA },
+          body: { title: 'Denied', body: '' } })).status, 404);
+      }
+    }
+    assert.equal(rows.get(id).title, 'Changed by A');
+    assert.equal(rows.get(bId).title, 'B fixture');
+    assert.deepEqual((await call('GET', authorizationB)).body, [{ id: bId, title: 'B fixture', body: '' }]);
+    assert.equal((await call('GET', authorizationB, { query: { id: bId } })).status, 200);
+    assert.equal((await call('PUT', authorizationB, { query: { id: bId },
+      body: { title: 'B changed', body: '' } })).status, 200);
+    assert.equal((await call('DELETE', authorizationB, { query: { id: bId } })).status, 200);
     for (const method of ['GET', 'PUT', 'DELETE']) {
       const denied = await call(method, undefined, { query: { id }, body: { title: 'Denied', body: '' } });
       assert.equal(denied.status, 401);
@@ -132,7 +157,7 @@ test('A can manage notes while anonymous requests are denied and existing shared
     assert.equal((await call('DELETE', authorization, { query: { id } })).status, 404);
     const shared = await call('GET', authorization, { query: { scope: 'shared' } });
     assert.equal(shared.status, 200);
-    assert.deepEqual(shared.body, [{ id: sharedId, title: sharedNote.title, body: sharedNote.content }]);
+    assert.deepEqual(shared.body, [{ id: suppliedId, title: 'Provided', body: '' }]);
     assert.equal((await call('GET', undefined, { query: { scope: 'shared' } })).status, 401);
     dbFailure = true;
     const failure = await call('GET', authorization);

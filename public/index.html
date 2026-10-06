@@ -52,7 +52,6 @@
       </form>
       <p id="note-message" role="status"></p>
     </section>
-<section id="shared-section" hidden><h2>기존 가상 자료</h2><ul id="shared-notes" aria-live="polite"></ul></section>
     <h2 id="my-notes-heading" hidden>내 메모</h2>
     <ul id="notes" aria-live="polite" hidden></ul>
   </main>
@@ -72,8 +71,6 @@
       email.disabled = password.disabled = login.disabled = logout.disabled = busy;
     };
     const myList = document.querySelector('#notes');
-    const sharedList = document.querySelector('#shared-notes');
-    const sharedSection = document.querySelector('#shared-section');
     const myHeading = document.querySelector('#my-notes-heading');
     let supabase;
     const editor = document.querySelector('#note-editor');
@@ -94,13 +91,13 @@
     };
     let visibleUserId = null;
     let notesRequest = null;
-    const loadNotes = async (controller, accessToken, shared = false) => {
-      const list = shared ? sharedList : myList;
+    const loadNotes = async (controller, accessToken) => {
+      const list = myList;
       const loading = document.createElement('li');
       loading.textContent = '가상 자료를 불러오는 중입니다.';
       list.replaceChildren(loading);
       try {
-        const response = await fetch(shared ? '/api/notes?scope=shared' : '/api/notes', {
+        const response = await fetch('/api/notes', {
           cache: 'no-store', signal: controller.signal,
           headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -111,7 +108,7 @@
         if (!Array.isArray(data)) throw new Error('자료 형식이 맞지 않습니다.');
         if (!data.length) {
           const empty = document.createElement('li');
-          empty.textContent = shared ? '기존 가상 자료가 없습니다.' : '내 메모가 없습니다. 첫 가상 메모를 추가해 주세요.';
+          empty.textContent = '내 메모가 없습니다. 첫 가상 메모를 추가해 주세요.';
           list.replaceChildren(empty);
           return;
         }
@@ -121,7 +118,6 @@
           const content = document.createElement('span');
           title.textContent = note.title;
           content.textContent = note.body;
-          if (shared) { item.append(title, content); return item; }
           const edit = document.createElement('button');
           edit.type = 'button'; edit.textContent = '수정';
           edit.addEventListener('click', () => runNoteAction(async request => {
@@ -158,7 +154,7 @@
       editor.hidden = !signedIn;
       form.hidden = signedIn;
       logout.hidden = !signedIn;
-      myList.hidden = sharedSection.hidden = myHeading.hidden = !signedIn;
+      myList.hidden = myHeading.hidden = !signedIn;
       status.textContent = signedIn ? '로그인되었습니다.' : '이메일과 비밀번호로 로그인해 주세요.';
       if (signedIn) password.value = '';
       const userId = session?.user?.id ?? null;
@@ -167,12 +163,11 @@
         resetEditor(); noteMessage.textContent = '';
         notesRequest?.abort();
         notesRequest = null;
-        myList.replaceChildren(); sharedList.replaceChildren();
+        myList.replaceChildren();
         visibleUserId = userId;
         if (signedIn) {
           notesRequest = new AbortController();
           void loadNotes(notesRequest, session.access_token);
-          void loadNotes(notesRequest, session.access_token, true);
         }
       }
     };
@@ -181,7 +176,6 @@
       if (!currentSession?.access_token) return;
       notesRequest = new AbortController();
       void loadNotes(notesRequest, currentSession.access_token);
-      void loadNotes(notesRequest, currentSession.access_token, true);
     };
     const runNoteAction = async action => {
       if (mutationBusy) return;

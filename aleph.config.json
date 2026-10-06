@@ -1,6 +1,6 @@
 {
-  "step": 1,
-  "repoUrl": "https://replace-with-your-github-repo.example",
+  "step": 3,
+  "repoUrl": "https://github.com/psm1109/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-henna.vercel.app/",
   "sampleMarker": "SAMPLE_NOTE_1",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",

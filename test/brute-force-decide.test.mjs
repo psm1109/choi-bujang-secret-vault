@@ -1,12 +1,33 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { decide } from '../xdr/brute-force/decide.mjs';
 import { extractAlerts } from '../xdr/brute-force/read-alerts.mjs';
 
 const fixture = JSON.parse(await readFile(new URL('../xdr/fixtures/brute-force.json', import.meta.url), 'utf8'));
 const ambiguous = fixture.alerts.find(alert => alert.id === 'bf-11');
 const jevResponse = noul => ({ answers: { is_brute_force: { type: 'noul', noul } } });
+
+test('격리 환경에서 import·process·파일·네트워크 없이 판단 모듈 실행', async () => {
+  const source = await readFile(new URL('../xdr/brute-force/decide.mjs', import.meta.url), 'utf8');
+  const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', `
+    import { readFileSync } from 'node:fs';
+    import { createContext, SourceTextModule } from 'node:vm';
+    const { source, alerts } = JSON.parse(readFileSync(0, 'utf8'));
+    const context = createContext({ console: { error() {} } });
+    const module = new SourceTextModule(source, { context });
+    await module.link(() => { throw new Error('외부 import 금지'); });
+    await module.evaluate();
+    const counts = { block: 0, alert: 0, record: 0 };
+    for (const alert of alerts) counts[(await module.namespace.decide(alert)).action]++;
+    console.log(JSON.stringify({ exports: Object.keys(module.namespace), counts }));
+  `], { input: JSON.stringify({ source, alerts: fixture.alerts }), encoding: 'utf8', timeout: 10000 });
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), {
+    exports: ['decide'], counts: { block: 10, alert: 9, record: 9 },
+  });
+});
 
 test('무차별 대입 판단 모듈', async t => {
   const originalFetch = globalThis.fetch;

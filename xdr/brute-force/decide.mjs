@@ -1,16 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { loadEnvFile } from 'node:process';
-import { fileURLToPath } from 'node:url';
-
-try {
-  loadEnvFile(fileURLToPath(new URL('../../.env', import.meta.url)));
-} catch (error) {
-  if (error.code !== 'ENOENT') throw new Error('Jev 환경 설정을 읽지 못했습니다.');
-}
-
-const { patterns } = JSON.parse(await readFile(new URL('./patterns.json', import.meta.url), 'utf8'));
-const burstName = patterns[0].name;
-const sprayName = patterns[1].name;
+// 심판 격리 환경에서 파일·내장 모듈·npm 패키지 없이 불러올 수 있어야 합니다.
+// patterns.json의 패턴 이름만 유지하며 설정 로딩은 로컬 실행기가 담당합니다.
+const burstName = '짧은 시간 같은 주소의 로그인 실패 연속';
+const sprayName = '여러 계정에 같은 비밀번호 대입';
 const JEV_TIMEOUT_MS = 2000;
 
 function decision(confidence, reason) {
@@ -74,19 +65,24 @@ async function askJev(evidence, reason) {
     console.error(`[Jev] ${code}${status === undefined ? '' : ` (HTTP ${status})`}: alert/0.5 기본값 사용`);
     return null;
   };
+  const env = globalThis.process?.env ?? {};
+  if (!env.JEV_API_URL || !env.JEV_API_KEY) return failure('configuration_missing');
+  if (typeof fetch !== 'function' || typeof AbortController !== 'function'
+    || typeof setTimeout !== 'function' || typeof clearTimeout !== 'function') {
+    return failure('runtime_unavailable');
+  }
   let timer;
   const controller = new AbortController();
   try {
-    if (!process.env.JEV_API_URL || !process.env.JEV_API_KEY) return failure('configuration_missing');
     let url;
-    try { url = new URL(process.env.JEV_API_URL); } catch { return failure('url_invalid'); }
+    try { url = new URL(env.JEV_API_URL); } catch { return failure('url_invalid'); }
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return failure('url_invalid');
     const request = async () => {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.JEV_API_KEY}`,
+          Authorization: `Bearer ${env.JEV_API_KEY}`,
         },
         body: JSON.stringify({
           model: 'jev-latest',

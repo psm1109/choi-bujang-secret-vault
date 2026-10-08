@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadEnvFile } from 'node:process';
 import { applyXdrDecisions } from '../xdr/ztna-bridge.mjs';
 
 const MODULE_KEYS = ['brute-force', 'web-injection', 'known-cve', 'persistence', 'privilege', 'exfiltration'];
@@ -65,6 +66,11 @@ const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLTo
 if (isMain) {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   try {
+    try {
+      loadEnvFile(join(root, '.env'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw new Error('Jev 환경 설정을 읽지 못했습니다.');
+    }
     await runXdr({ root, moduleKey: process.argv[2] });
   } catch (error) {
     console.error(error instanceof Error ? error.message : '실행 오류');

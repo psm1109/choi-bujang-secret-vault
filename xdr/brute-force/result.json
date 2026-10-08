@@ -64,56 +64,56 @@
     },
     {
       "alertId": "bf-11",
-      "action": "record",
-      "confidence": 0.23,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-12",
-      "action": "record",
-      "confidence": 0.28,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-13",
-      "action": "record",
-      "confidence": 0.27,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-14",
-      "action": "record",
-      "confidence": 0.37,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-15",
-      "action": "record",
-      "confidence": 0.42,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "여러 계정에 같은 비밀번호 대입"
     },
     {
       "alertId": "bf-16",
-      "action": "record",
-      "confidence": 0.29,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-17",
-      "action": "record",
-      "confidence": 0.25,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-18",
-      "action": "record",
-      "confidence": 0.4,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
       "alertId": "bf-19",
-      "action": "record",
-      "confidence": 0.26,
+      "action": "alert",
+      "confidence": 0.5,
       "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
     },
     {
@@ -173,7 +173,7 @@
   ],
   "counts": {
     "block": 10,
-    "alert": 0,
-    "record": 18
+    "alert": 9,
+    "record": 9
   }
 }

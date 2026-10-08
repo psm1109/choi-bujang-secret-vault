@@ -39,7 +39,14 @@ function evidenceFor(alert) {
   const seconds = numberIn(text, /(\d+)초\s*(?:안|동안|이내)/u);
   const minutes = numberIn(text, /(\d+)분\s*(?:안|동안|이내)/u);
   const windowMinutes = minutes ?? (seconds === null ? null : seconds / 60);
-  const multiAccount = /여러 계정|서로 다른 계정|계정 이름을 바꿔|계정\s*\d+개|두 계정/u.test(text);
+  // 계정 원문은 근거 요약에 넣지 않고 서로 다른 계정이 둘 이상인지에만 사용합니다.
+  const accounts = alert?.data?.accounts;
+  const accountList = Array.isArray(accounts) ? accounts
+    : typeof accounts === 'string' ? accounts.split(',') : [];
+  const distinctAccounts = new Set(accountList.filter(value => typeof value === 'string')
+    .map(value => value.trim()).filter(Boolean));
+  const multiAccount = /여러 계정|서로 다른 계정|계정 이름을 바꿔|계정\s*\d+개|두 계정/u.test(text)
+    || distinctAccounts.size >= 2;
   const accountCount = numberIn(text, /계정\s*(\d+)개/u);
   const samePassword = /같은 비밀번호|동일한 비밀번호/u.test(text);
   const passwordVariation = /비밀번호를 한 글자씩 바꿔/u.test(text);
@@ -153,5 +160,9 @@ export async function decide(alert) {
   const reason = multiAccount ? sprayName
     : failure ? burstName : '판단 근거 부족';
   const confidence = await askJev(evidence, reason);
-  return decision(confidence ?? 0.5, reason);
+  // 공격 확률이 낮다는 것만으로 남아 있는 실패 신호를 정상으로 확정하지 않습니다.
+  // 반환 confidence는 로컬 패턴과 Jev를 합친 판단 점수입니다.
+  // 정상 패턴에 해당하지 않은 실패 경보는 최소 검토 점수 0.5를 유지합니다.
+  const combinedConfidence = failure ? Math.max(0.5, confidence ?? 0.5) : confidence ?? 0.5;
+  return decision(combinedConfidence, reason);
 }

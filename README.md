@@ -1,5 +1,15 @@
 # BYTE BACK 방어전 시작 틀 R5
 
+## 보너스 xdr-01 저장점
+
+무차별 로그인 판단 모듈은 외부 import와 파일 접근 없이 `decide(alert)`를 실행합니다. 명확한 공격과 정상 이벤트는 로컬 패턴으로 분류하고, 애매한 경보만 Jev 공식 API에 문의합니다. 정상으로 확정되지 않은 실패 경보는 최소 판단 점수 0.5로 알림을 유지하며, Jev 호출 실패도 `alert`로 처리합니다. 로컬 실행기가 Git에서 제외된 `.env`를 읽으며 비밀값을 결과에 기록하지 않습니다.
+
+다시 실행: `npm run xdr:run -- brute-force`. 2026-10-08 재실행 결과는 `xdr/brute-force/result.json`의 `block` 10건, `alert` 9건, `record` 9건이며 정상 이벤트 차단은 0건입니다. 첫 실행의 Jev HTTP 503 뒤 한 번 재시도했고 재시도에서는 오류가 없었습니다. 격리 실행 확인 명령은 `node --test test/brute-force-decide.test.mjs`입니다. 방어전 화면의 **decide 실행**을 다시 눌러 명확한 공격은 차단 후보, 애매한 시도는 알림, 정상 이벤트는 기록인지 확인합니다. 로컬 격리 검증 통과를 운영 심판 통과로 보고하지 않습니다.
+
+XDR 연결 모듈은 검증된 대상이 있을 때만 근거 경보 번호와 10분 만료 시각을 가진 거부 규칙을 생성합니다. 현재 CLI에는 검증된 대상 연결이 없어 실제 ZTNA 차단은 미적용입니다. 알림은 `xdr/alerts.log`에 누적하고 Git에서 제외합니다. `src/decider.mjs`의 기존 `starter.deny` 규칙은 보존했습니다.
+
+주 프로젝트 설정은 단계 5를 유지합니다. 등록된 배포 주소, 로그인 발급자·공개키 주소·대상, 허용 경로 6개, 원본 `learning_notes` API 주소를 현재 구현과 대조했으며 `judgeIssuer`는 변경하지 않았습니다. 기존 자기 점검은 현재 5단계 자료 API의 정상·거부 항목과 미실행 표시를 유지합니다. 이번 저장점에서는 배포·제출 묶음·실제 로그인 CRUD·운영 심판 시험을 실행하지 않았으며, 로컬 커밋만 만들고 푸시하지 않습니다.
+
 ## 현재 5단계 저장점: 자료 요청을 서버 함수로 통합
 
 브라우저의 메모 읽기·추가·수정·삭제는 기존 서버 함수 `/api/notes`와 `/api/notes/:id`를 호출하며 Supabase 자료 직접 호출은 없습니다. 로그인·세션 복원·갱신·로그아웃은 `/api/auth`를 거치며 화면의 Supabase 공개 키와 SDK는 제거했습니다. 갱신 토큰은 HttpOnly·Secure·SameSite=Strict 쿠키에 보관하고 서버는 기존 서버 전용 설정을 사용합니다. 메모 API의 로그인·소유자 검사는 유지했습니다. `aleph.config.json`은 단계 5이며 `originalApiUrl`은 쿼리 없는 HTTPS 원본 `/rest/v1/learning_notes` 주소입니다. 배포 빌드는 `public/aleph.json`에 원본 API 주소와 허용 자료 경로 6개를 포함합니다. 첫 화면에는 `X-Content-Type-Options: nosniff`를 설정합니다. `judgeIssuer`, 로그인 발급자·공개키 주소·대상, 허용 경로는 기존 구현과 일치하며 유지했습니다. 판정기의 `starter.deny`는 현재 구현된 기본 거부 규칙입니다.

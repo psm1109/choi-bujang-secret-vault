@@ -40,6 +40,7 @@ test('가짜 decide 가 result.json 형식과 건수를 만듭니다', async () 
     await mkdir(join(dir, 'scripts'), { recursive: true });
     await mkdir(join(dir, 'xdr', 'fixtures'), { recursive: true });
     await mkdir(join(dir, 'xdr', 'brute-force'), { recursive: true });
+    await cp(join(root, 'xdr', 'ztna-bridge.mjs'), join(dir, 'xdr', 'ztna-bridge.mjs'));
     await cp(join(root, 'scripts', 'xdr-run.mjs'), join(dir, 'scripts', 'xdr-run.mjs'));
     const alerts = ['a-block', 'a-alert', 'a-record', 'a-bad', 'a-throw'].map((id) => ({
       id,

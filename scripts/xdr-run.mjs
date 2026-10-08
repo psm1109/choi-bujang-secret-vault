@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { applyXdrDecisions } from '../xdr/ztna-bridge.mjs';
 
 const MODULE_KEYS = ['brute-force', 'web-injection', 'known-cve', 'persistence', 'privilege', 'exfiltration'];
 const ACTIONS = new Set(['block', 'alert', 'record']);
@@ -17,7 +18,8 @@ export function isDecision(value) {
     && typeof value.reason === 'string';
 }
 
-export async function runXdr({ root, moduleKey, writeError = (line) => console.error(line) }) {
+export async function runXdr({ root, moduleKey, resolveVerifiedTarget,
+  writeError = (line) => console.error(line) }) {
   if (!MODULE_KEYS.includes(moduleKey)) {
     throw new Error('moduleKey 가 없습니다. brute-force, web-injection, known-cve, persistence, privilege, exfiltration 중 하나를 넣습니다.');
   }
@@ -55,6 +57,7 @@ export async function runXdr({ root, moduleKey, writeError = (line) => console.e
   const outDir = join(root, 'xdr', moduleKey);
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  await applyXdrDecisions({ root, moduleKey, decisions, resolveVerifiedTarget });
   return result;
 }
 

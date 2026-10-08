@@ -5,3 +5,7 @@ bundle-notes.json
 node_modules/
 public/aleph.json
 sql/step-2-learning-notes.local.sql
+xdr/alerts.log
+xdr/deny-rules.json
+xdr/deny-rules.json.*.tmp
+test/.tmp-xdr-*/

@@ -6,15 +6,20 @@ import { extractAlerts } from '../xdr/brute-force/read-alerts.mjs';
 
 const fixture = JSON.parse(await readFile(new URL('../xdr/fixtures/brute-force.json', import.meta.url), 'utf8'));
 const ambiguous = fixture.alerts.find(alert => alert.id === 'bf-11');
+const jevResponse = noul => ({ answers: { is_brute_force: { type: 'noul', noul } } });
 
 test('무차별 대입 판단 모듈', async t => {
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.JEV_API_URL;
   const originalKey = process.env.JEV_API_KEY;
+  const originalError = console.error;
+  const diagnostics = [];
+  console.error = line => diagnostics.push(line);
   process.env.JEV_API_URL = 'https://jev.invalid/confidence';
   process.env.JEV_API_KEY = 'test-only-placeholder';
   t.after(() => {
     globalThis.fetch = originalFetch;
+    console.error = originalError;
     for (const [name, value] of [['JEV_API_URL', originalUrl], ['JEV_API_KEY', originalKey]]) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
@@ -25,7 +30,7 @@ test('무차별 대입 판단 모듈', async t => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls += 1;
-      return Response.json({ confidence: 0.65 });
+      return Response.json(jevResponse(0.65));
     };
     const before = JSON.stringify(fixture);
     const results = await Promise.all(fixture.alerts.map(decide));
@@ -47,7 +52,7 @@ test('무차별 대입 판단 모듈', async t => {
   await t.test('Jev 확신도의 임계값을 그대로 적용', async () => {
     for (const [confidence, action] of [[0, 'record'], [0.4999, 'record'], [0.5, 'alert'],
       [0.8499, 'alert'], [0.85, 'block'], [1, 'block']]) {
-      globalThis.fetch = async () => Response.json({ confidence });
+      globalThis.fetch = async () => Response.json(jevResponse(confidence));
       assert.deepEqual(await decide(ambiguous), {
         action, confidence, reason: '짧은 시간 같은 주소의 로그인 실패 연속',
       });
@@ -59,8 +64,10 @@ test('무차별 대입 판단 모듈', async t => {
       async () => { throw new Error('모의 연결 오류'); },
       async () => new Response('', { status: 503 }),
       async () => new Response('invalid-json'),
-      ...[{}, { confidence: '0.9' }, { confidence: -1 }, { confidence: 1.1 },
-        { confidence: null }].map(body => async () => Response.json(body)),
+      ...[{}, { confidence: 0.95 }, jevResponse('0.9'), jevResponse(-1), jevResponse(1.1),
+        jevResponse(null), { answers: { is_brute_force: { type: 'choice', noul: 0.9 } } },
+        { answers: { wrong_question: { type: 'noul', noul: 0.9 } } }]
+        .map(body => async () => Response.json(body)),
     ];
     for (const response of responses) {
       globalThis.fetch = response;
@@ -72,6 +79,8 @@ test('무차별 대입 판단 모듈', async t => {
     delete process.env.JEV_API_URL;
     assert.equal((await decide(ambiguous)).action, 'alert');
     process.env.JEV_API_URL = 'https://jev.invalid/confidence';
+    assert.ok(diagnostics.some(line => line.includes('http_error (HTTP 503)')));
+    assert.ok(diagnostics.some(line => line.includes('response_invalid')));
   });
 
   await t.test('응답 지연 시 제한 시간 뒤 alert', async () => {
@@ -92,12 +101,17 @@ test('무차별 대입 판단 모듈', async t => {
     globalThis.fetch = async (_url, options) => {
       const body = JSON.parse(options.body);
       assert.equal(options.headers.Authorization, 'Bearer test-only-placeholder');
-      assert.equal(body.moduleKey, 'brute-force');
+      assert.deepEqual(Object.keys(body).sort(), ['model', 'questions', 'state']);
+      assert.equal(body.model, 'jev-latest');
+      assert.equal(body.state.moduleKey, 'brute-force');
+      assert.equal(body.questions.is_brute_force.type, 'noul');
+      assert.ok(body.questions.is_brute_force.instructions);
+      assert.deepEqual(Object.keys(body.questions.is_brute_force.criteria).sort(), ['false', 'true']);
       for (const marker of [alert.data.srcip, alert.data.srcuser, alert.data.password,
         alert.id, alert.agent.name, '원문-전송-금지']) {
         assert.equal(options.body.includes(marker), false);
       }
-      return Response.json({ confidence: 0.7, reason: alert.data.password });
+      return Response.json({ ...jevResponse(0.7), reason: alert.data.password });
     };
     assert.equal((await decide(alert)).reason, '짧은 시간 같은 주소의 로그인 실패 연속');
   });
@@ -106,12 +120,15 @@ test('무차별 대입 판단 모듈', async t => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls += 1;
-      return Response.json({ confidence: 0.6 });
+      return Response.json(jevResponse(0.6));
     };
     for (const alert of [null, {}, { description: '여러 계정에 같은 비밀번호 대입이 아닙니다.' },
       { description: '로그인 실패 48건 뒤에 성공했습니다.', srcip: '192.0.2.10' }]) {
       assert.equal((await decide(alert)).action, 'alert');
     }
     assert.equal(calls, 4);
+    for (const marker of ['test-only-placeholder', 'https://jev.invalid', 'synthetic-sensitive-marker']) {
+      assert.equal(diagnostics.some(line => line.includes(marker)), false);
+    }
   });
 });

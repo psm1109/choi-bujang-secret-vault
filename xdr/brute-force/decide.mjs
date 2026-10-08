@@ -58,16 +58,22 @@ function evidenceFor(alert) {
 }
 
 async function askJev(evidence, reason) {
-  // 연결 계약: .env의 JEV_API_URL에 요약을 JSON POST,
-  // JEV_API_KEY는 Authorization: Bearer 헤더, 응답은 { confidence: 0~1 }.
+  // 공식 계약: model/state/questions를 보내고 answers의 noul(공격일 확률)을 읽습니다.
+  // Choice/Score의 confidence는 정상 판단의 확신도도 높을 수 있어 차단 점수로 쓰지 않습니다.
+  // JEV_API_KEY는 Authorization: Bearer 헤더에만 사용합니다.
   // 자격 증명은 본문·결과에 넣지 않으며 원본 경보는 전송하지 않습니다.
-  // Jev의 실제 서비스 계약이 다르면 이 어댑터에서만 맞춥니다.
+  const failure = (code, status) => {
+    // 원본 오류·응답·URL·API 키는 출력하지 않습니다.
+    console.error(`[Jev] ${code}${status === undefined ? '' : ` (HTTP ${status})`}: alert/0.5 기본값 사용`);
+    return null;
+  };
   let timer;
   const controller = new AbortController();
   try {
-    if (!process.env.JEV_API_URL || !process.env.JEV_API_KEY) return null;
-    const url = new URL(process.env.JEV_API_URL);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
+    if (!process.env.JEV_API_URL || !process.env.JEV_API_KEY) return failure('configuration_missing');
+    let url;
+    try { url = new URL(process.env.JEV_API_URL); } catch { return failure('url_invalid'); }
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return failure('url_invalid');
     const request = async () => {
       const response = await fetch(url, {
         method: 'POST',
@@ -75,26 +81,44 @@ async function askJev(evidence, reason) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.JEV_API_KEY}`,
         },
-        body: JSON.stringify({ moduleKey: 'brute-force', pattern: reason, evidence }),
+        body: JSON.stringify({
+          model: 'jev-latest',
+          state: { moduleKey: 'brute-force', candidatePattern: reason, evidence },
+          questions: {
+            is_brute_force: {
+              type: 'noul',
+              instructions: '이 경보의 evidence는 무차별 로그인 공격을 뒷받침하는가? '
+                + 'candidatePattern은 확정된 사실이 아니라 검토할 후보 패턴 이름이다. '
+                + '누락된 시간 범위나 동일 비밀번호를 추정하지 말고, 소수의 실패 뒤 성공 등 정상 근거도 고려하라.',
+              criteria: {
+                true: '반복적인 비밀번호 추측 또는 여러 계정에 동일 비밀번호를 대입한 공격 근거가 있다.',
+                false: '정상 인증 활동이거나 공격으로 판단할 근거가 부족하다.',
+              },
+            },
+          },
+        }),
         signal: controller.signal,
         redirect: 'error',
       });
-      if (!response.ok) return null;
-      const result = await response.json();
-      return typeof result?.confidence === 'number' && Number.isFinite(result.confidence)
-        && result.confidence >= 0 && result.confidence <= 1 ? result.confidence : null;
+      if (!response.ok) return failure('http_error', response.status);
+      let result;
+      try { result = await response.json(); } catch { return failure('response_invalid'); }
+      const answer = result?.answers?.is_brute_force;
+      const confidence = answer?.noul;
+      return answer?.type === 'noul' && typeof confidence === 'number' && Number.isFinite(confidence)
+        && confidence >= 0 && confidence <= 1 ? confidence : failure('response_invalid');
     };
     return await Promise.race([
       request(),
       new Promise(resolve => {
         timer = setTimeout(() => {
           controller.abort();
-          resolve(null);
+          resolve(failure('timeout'));
         }, JEV_TIMEOUT_MS);
       }),
     ]);
   } catch {
-    return null;
+    return failure(controller.signal.aborted ? 'timeout' : 'network_error');
   } finally {
     clearTimeout(timer);
   }

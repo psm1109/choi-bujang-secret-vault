@@ -141,7 +141,7 @@ test('시험 경보를 실행기로 재전송하면 명확한 공격만 거부�
   });
   process.env.JEV_API_URL = 'https://jev.invalid/confidence';
   process.env.JEV_API_KEY = 'test-only-placeholder';
-  globalThis.fetch = async () => Response.json({ confidence: 0.65 });
+  globalThis.fetch = async () => Response.json({ answers: { is_brute_force: { type: 'noul', noul: 0.65 } } });
   const targets = new Map(Array.from({ length: 28 }, (_, i) => [
     `bf-${String(i + 1).padStart(2, '0')}`,
     { ...normalTarget, deviceId: (i + 1).toString(16).padStart(16, '0') },

@@ -1,0 +1,179 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "brute-force",
+  "decisions": [
+    {
+      "alertId": "bf-01",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-02",
+      "action": "block",
+      "confidence": 0.98,
+      "reason": "여러 계정에 같은 비밀번호 대입"
+    },
+    {
+      "alertId": "bf-03",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-04",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-05",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "여러 계정에 일정 간격의 로그인 실패"
+    },
+    {
+      "alertId": "bf-06",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-07",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "비밀번호 변형 반복 대입"
+    },
+    {
+      "alertId": "bf-08",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "다량의 로그인 실패 반복"
+    },
+    {
+      "alertId": "bf-09",
+      "action": "block",
+      "confidence": 0.98,
+      "reason": "여러 계정에 같은 비밀번호 대입"
+    },
+    {
+      "alertId": "bf-10",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "다량의 로그인 실패 반복"
+    },
+    {
+      "alertId": "bf-11",
+      "action": "record",
+      "confidence": 0.23,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-12",
+      "action": "record",
+      "confidence": 0.28,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-13",
+      "action": "record",
+      "confidence": 0.27,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-14",
+      "action": "record",
+      "confidence": 0.37,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-15",
+      "action": "record",
+      "confidence": 0.42,
+      "reason": "여러 계정에 같은 비밀번호 대입"
+    },
+    {
+      "alertId": "bf-16",
+      "action": "record",
+      "confidence": 0.29,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-17",
+      "action": "record",
+      "confidence": 0.25,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-18",
+      "action": "record",
+      "confidence": 0.4,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-19",
+      "action": "record",
+      "confidence": 0.26,
+      "reason": "짧은 시간 같은 주소의 로그인 실패 연속"
+    },
+    {
+      "alertId": "bf-20",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-21",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-22",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-23",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-24",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-25",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-26",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-27",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    },
+    {
+      "alertId": "bf-28",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "정상 인증·세션 활동"
+    }
+  ],
+  "counts": {
+    "block": 10,
+    "alert": 0,
+    "record": 18
+  }
+}

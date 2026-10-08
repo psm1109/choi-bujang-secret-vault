@@ -10,7 +10,7 @@ const event = (url, description = '', count = '1') => ({ data: { url, count }, r
 test('가상 경보를 패턴 근거에 따라 분류하고 원본을 보존합니다', () => {
   const original = JSON.stringify(fixture);
   const blocked = new Set(['wi-01', 'wi-02', 'wi-03', 'wi-04', 'wi-05', 'wi-06', 'wi-07', 'wi-08']);
-  const reviewed = new Set(['wi-09', 'wi-15', 'wi-16', 'wi-17']);
+  const reviewed = new Set(['wi-09', 'wi-10', 'wi-11', 'wi-12', 'wi-13', 'wi-14', 'wi-15', 'wi-16', 'wi-17']);
   for (const alert of fixture.alerts) {
     const out = decide(alert);
     assert.deepEqual(Object.keys(out).sort(), ['action', 'confidence', 'reason']);
@@ -21,6 +21,15 @@ test('가상 경보를 패턴 근거에 따라 분류하고 원본을 보존합�
     assert.ok(out.reason && !/[\r\n]/u.test(out.reason));
   }
   assert.equal(JSON.stringify(fixture), original);
+});
+
+test('단독 수업 단어·경로 이름·긴 주소 경보는 정상으로 내리거나 차단하지 않습니다', () => {
+  for (const source of fixture.alerts.filter(alert => ['wi-10', 'wi-11', 'wi-12', 'wi-13', 'wi-14'].includes(alert.id))) {
+    // 경보 번호·출처·등급에 의존하지 않고 설명의 약한 근거를 검사합니다.
+    const out = decide({ description: source.rule.description, count: '20' });
+    assert.equal(out.action, 'alert');
+    assert.equal(out.confidence, 0.5);
+  }
 });
 
 test('동일 출처의 반복 명령 구분자만 차단 후보로 올립니다', () => {

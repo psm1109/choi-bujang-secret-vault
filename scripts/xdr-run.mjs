@@ -58,7 +58,12 @@ export async function runXdr({ root, moduleKey, resolveVerifiedTarget,
   const outDir = join(root, 'xdr', moduleKey);
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-  await applyXdrDecisions({ root, moduleKey, decisions, resolveVerifiedTarget });
+  if (moduleKey === 'web-injection') {
+    const { respond } = await import(pathToFileURL(join(outDir, 'respond.mjs')).href);
+    await respond({ root, moduleKey, decisions, resolveVerifiedTarget });
+  } else {
+    await applyXdrDecisions({ root, moduleKey, decisions, resolveVerifiedTarget });
+  }
   return result;
 }
 

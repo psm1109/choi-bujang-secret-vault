@@ -60,6 +60,20 @@ export function decide(alert) {
 
   if (strong.length) return result('block', 0.95, strong);
   if (partial.length) return result('alert', 0.6, partial);
+  // 공격이 확정되지 않은 단독 단어·주소 이상 경보도 검토 알림으로 유지합니다.
+  // 삽입·반복이 부정되어도 이 약한 신호 자체를 정상으로 확정하지 않습니다.
+  if (/\b(?:SQL|select)\b.*수업/iu.test(description)) {
+    return result('alert', 0.5, [sqlName + ' (단독 단어)']);
+  }
+  if (/스크립트.*수업/u.test(description)) {
+    return result('alert', 0.5, [scriptName + ' (단독 단어)']);
+  }
+  if (/경로에\s*up\b/iu.test(description)) {
+    return result('alert', 0.5, [pathName + ' (반복 근거 부족)']);
+  }
+  if (/주소가 평소보다 깁/u.test(description)) {
+    return result('alert', 0.5, ['일치 패턴 없음: 요청 주소 길이 이상']);
+  }
   // 반복 근거 없는 구분자나 종류가 명시되지 않은 주입 신호는 검토로 남깁니다.
   if (!negated && /주입처럼|이상한 검색|구분 문자|명령 구분자/u.test(description)) {
     return result('alert', 0.5, ['일치 패턴 없음: 불완전한 주입 신호']);

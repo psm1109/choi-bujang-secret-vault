@@ -75,3 +75,29 @@ reasonCode, allowedReasonCodes })`가 반환한 `decide`와 `RULE_IDS`를 사용
 `node --test test/xdr-ztna-bridge.test.mjs`는 가상 연결과 정상 요청을 허용하는
 시험 판정기로 재전송·정상 통과·만료·중복·기존 거부 보존을 확인합니다.
 실제 접속 차단이나 심판 판정의 증거는 아닙니다.
+
+## 웹 주입 경보와 ZTNA 연결
+
+`npm run xdr:run -- web-injection`은 판단 결과를 `web-injection/respond.mjs`의
+`respond({ root, moduleKey, decisions, resolveVerifiedTarget })`에 전달합니다.
+`decide.mjs`는 판단만 수행합니다. 알림과 차단 후보는 `xdr/alerts.log`에 한 줄씩
+추가하며 경보 원문·사용자·주소·인증 정보는 기록하지 않습니다.
+
+신뢰하는 서버가 `resolveVerifiedTarget({ moduleKey, alertId })`로 검증된
+`classId`, `projectId`, `subjectId`, `deviceId`를 제공해야 자동 거부 규칙을 만듭니다.
+매핑이 없는 CLI에서는 후보만 기록합니다. `block`이며 확신도 0.85 이상이고
+같은 실행에서 정상으로 확인된 대상이 아닌 경우에만
+`xdr/web-injection/deny-rules.json`에 10분 만료 규칙과 근거 경보 번호를 저장합니다.
+규칙은 검증된 대상 조합의 지문만 보관하며, 중복 경보는 만료를 연장하지 않습니다.
+이 파일은 기존 무차별 로그인 규칙과 분리되어 Git에서 제외됩니다.
+
+ZTNA 호출 위치에서 `createWebInjectionDecider({ root, baseDecide, baseRuleIds,
+reasonCode, allowedReasonCodes })`가 반환한 `decide`와 `RULE_IDS`를 사용합니다.
+기존 판정기와 규칙 목록을 그대로 넘기고, 거부 코드는 운영 등록부에서 제공해야 합니다.
+기존 거부 응답은 보존하고, 활성 웹 주입 규칙과 대상이 정확히 일치하면 거부합니다.
+그 밖의 요청은 기존 판정 결과를 유지합니다. 기존 XDR 래퍼도 `baseDecide`로 연결할 수 있습니다.
+
+`node --test test/web-injection-respond.test.mjs`는 가상 매핑과 시험 판정기로
+재전송·명확한 공격 거부·정상 통과·만료·기존 규칙 보존을 확인합니다.
+현재 시작 판정기는 모두 거부하므로 이 시험은 실제 운영의 정상 통과 증거가 아닙니다.
+운영 매핑·허용 코드·판정기 호출 위치는 이 저장소에서 연결되어 있지 않습니다.

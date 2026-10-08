@@ -8,4 +8,6 @@ sql/step-2-learning-notes.local.sql
 xdr/alerts.log
 xdr/deny-rules.json
 xdr/deny-rules.json.*.tmp
+xdr/web-injection/deny-rules.json
+xdr/web-injection/deny-rules.json.*.tmp
 test/.tmp-xdr-*/

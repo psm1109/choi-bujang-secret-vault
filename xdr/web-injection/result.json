@@ -34,9 +34,9 @@
     },
     {
       "alertId": "wi-06",
-      "action": "alert",
-      "confidence": 0.5,
-      "reason": "일치 패턴 없음: 불완전한 주입 신호"
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "요청 인자 안의 명령 구분자 반복"
     },
     {
       "alertId": "wi-07",
@@ -160,8 +160,8 @@
     }
   ],
   "counts": {
-    "block": 7,
-    "alert": 5,
+    "block": 8,
+    "alert": 4,
     "record": 14
   }
 }

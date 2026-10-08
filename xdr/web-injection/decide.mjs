@@ -51,9 +51,16 @@ export function decide(alert) {
     else if ((described && !negated) || fragment) partial.push(name);
   }
 
+  // 경보 설명에 명시된 동일 출처의 반복 명령 주입도 확정 후보로 남깁니다.
+  const sameSource = /같은 주소|한 주소/u.test(description)
+    || Boolean(text(alert?.data?.srcip ?? alert?.srcip));
+  if (/명령 구분자/u.test(description) && repeated && sameSource && !uncertain && !negated) {
+    strong.push('요청 인자 안의 명령 구분자 반복');
+  }
+
   if (strong.length) return result('block', 0.95, strong);
   if (partial.length) return result('alert', 0.6, partial);
-  // 패턴 밖의 구분자나 종류가 명시되지 않은 주입 신호는 차단 근거로 승격하지 않습니다.
+  // 반복 근거 없는 구분자나 종류가 명시되지 않은 주입 신호는 검토로 남깁니다.
   if (!negated && /주입처럼|이상한 검색|구분 문자|명령 구분자/u.test(description)) {
     return result('alert', 0.5, ['일치 패턴 없음: 불완전한 주입 신호']);
   }

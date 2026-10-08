@@ -9,8 +9,8 @@ const event = (url, description = '', count = '1') => ({ data: { url, count }, r
 
 test('가상 경보를 패턴 근거에 따라 분류하고 원본을 보존합니다', () => {
   const original = JSON.stringify(fixture);
-  const blocked = new Set(['wi-01', 'wi-02', 'wi-03', 'wi-04', 'wi-05', 'wi-07', 'wi-08']);
-  const reviewed = new Set(['wi-06', 'wi-09', 'wi-15', 'wi-16', 'wi-17']);
+  const blocked = new Set(['wi-01', 'wi-02', 'wi-03', 'wi-04', 'wi-05', 'wi-06', 'wi-07', 'wi-08']);
+  const reviewed = new Set(['wi-09', 'wi-15', 'wi-16', 'wi-17']);
   for (const alert of fixture.alerts) {
     const out = decide(alert);
     assert.deepEqual(Object.keys(out).sort(), ['action', 'confidence', 'reason']);
@@ -21,6 +21,20 @@ test('가상 경보를 패턴 근거에 따라 분류하고 원본을 보존합�
     assert.ok(out.reason && !/[\r\n]/u.test(out.reason));
   }
   assert.equal(JSON.stringify(fixture), original);
+});
+
+test('동일 출처의 반복 명령 구분자만 차단 후보로 올립니다', () => {
+  const clear = fixture.alerts.find(alert => alert.id === 'wi-06');
+  const out = decide(clear);
+  assert.equal(out.action, 'block');
+  assert.ok(out.confidence >= 0.85);
+  assert.equal(out.reason, '요청 인자 안의 명령 구분자 반복');
+  for (const alert of [
+    { ...clear, data: { ...clear.data, count: '1' }, rule: { description: '명령 구분자 표기가 1건 있습니다. 반복은 없습니다.' } },
+    { ...clear, rule: { description: '명령 구분자 주입이 의심됩니다.' } },
+    { ...clear, rule: { description: '명령 구분자 표기는 없습니다.' } },
+    { ...clear, data: { count: '11' } },
+  ]) assert.notEqual(decide(alert).action, 'block');
 });
 
 test('추출된 설명과 실제 인자·인코딩을 판정하며 이름이나 등급으로 차단하지 않습니다', () => {

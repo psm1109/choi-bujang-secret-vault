@@ -10,4 +10,6 @@ xdr/deny-rules.json
 xdr/deny-rules.json.*.tmp
 xdr/web-injection/deny-rules.json
 xdr/web-injection/deny-rules.json.*.tmp
+xdr/known-cve/deny-rules.json
+xdr/known-cve/deny-rules.json.*.tmp
 test/.tmp-xdr-*/

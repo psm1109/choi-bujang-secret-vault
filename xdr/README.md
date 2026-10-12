@@ -1,5 +1,30 @@
 # XDR 보너스 경보
 
+## 지속성 경보와 ZTNA 연결
+
+`npm run xdr:run -- persistence`는 독립된 `persistence/decide.mjs`의 결과를
+`persistence/respond.mjs`로 전달합니다. 알림과 차단 후보는 `xdr/alerts.log`에
+JSON 한 줄씩 기록하며, 설명 원문·주소·계정·인증 정보는 기록하지 않습니다.
+
+신뢰하는 서버가 `resolveVerifiedTarget({ moduleKey, alertId })`로 검증된
+`classId`, `projectId`, `subjectId`, `deviceId`를 제공해야 거부 규칙을 생성합니다.
+`block`이고 확신도가 0.85 이상인 후보만 `xdr/persistence/deny-rules.json`에
+대상 조합의 지문·근거 경보 번호·생성 시각·10분 뒤 만료 시각을 저장합니다.
+같은 실행의 정상 `record` 대상은 새 차단에서 제외하고 기존 지속성 차단도 해제합니다.
+중복 경보는 만료를 연장하지 않고, 만료된 규칙은 판정에 쓰지 않습니다.
+규칙·임시 파일·알림 로그는 Git에서 제외하며 다른 모듈의 규칙은 보존합니다.
+
+ZTNA 호출 위치에서 `createPersistenceDecider({ root, baseDecide, baseRuleIds,
+reasonCode, allowedReasonCodes })`의 반환값을 사용합니다. 기존 판정기를
+`baseDecide`로 넘기고, 거부 코드는 운영 등록부의 허용 목록에서 제공해야 합니다.
+활성 규칙에 정확히 일치한 요청만 거부하며 기존 거부와 다른 요청의 결과는 유지합니다.
+
+`node --test --test-isolation=none test/persistence-respond.test.mjs`는 가상 매핑과
+정상 요청을 허용하는 시험 판정기로 재전송·정상 통과·만료·중복·기존 거부 보존을 확인합니다.
+현재 `src/decider.mjs`는 모두 거부하는 시작 틀이므로 운영 정상 통과의 증거는 아닙니다.
+검증된 대상 매핑·운영 허용 코드·운영 호출 위치는 아직 연결되지 않았습니다.
+매핑 없는 CLI에서는 차단 후보·알림만 기록하고 자동 거부 규칙을 생성하지 않습니다.
+
 이 폴더는 보너스 여섯 개의 연습 경보입니다. 경보는 수업용으로 만든 Wazuh 모양이며, 실제 로그가 아닙니다. 정답은 이 저장소에 없습니다.
 
 ## 경보 묶음

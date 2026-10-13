@@ -76,6 +76,38 @@ test('stage 9 bundle distinguishes detection practice from unexecuted revocation
   }
 });
 
+test('stage 10 bundle reports only the anonymous restore attempt and keeps recovery unexecuted', async () => {
+  const originalFetch = globalThis.fetch;
+  const config10 = { ...config, step: 10, restoreRoute: '/api/notes/restore',
+    originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes', allowedRoutes: ['GET /api/notes/:id'] };
+  let restoreRequests = 0;
+  try {
+    globalThis.fetch = async (input, init) => {
+      assert.equal(new Headers(init.headers).has('authorization'), false);
+      const path = new URL(input).pathname;
+      if (path === '/aleph.json') return new Response(JSON.stringify(config10));
+      if (path === '/') return new Response('<html></html>', { headers: { 'x-content-type-options': 'nosniff' } });
+      if (path === config10.restoreRoute) {
+        restoreRequests++;
+        assert.equal(init.method, 'POST');
+        assert.equal(init.body, '{}');
+      }
+      return new Response('private_fixture_not_recorded', { status: path === '/data.json' ? 404 : 401 });
+    };
+    const results = await runAttackChecks(config10);
+    assert.equal(results.length, 20);
+    assert.equal(restoreRequests, 1);
+    const restore = results.find(item => item.attackId === 'restore_backup_verification');
+    assert.match(restore.observed, /실제 비로그인 POST HTTP 401/u);
+    assert.match(restore.observed, /B 자료 복원.*미실행/u);
+    assert.match(restore.observed, /S10_BACKUP_UNVERIFIED 해소 미확인/u);
+    assert.equal(JSON.stringify(results).includes('private_fixture_not_recorded'), false);
+    assert.ok(results.every(item => item.observed.length <= 300));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('build identity accepts stages 6 through 12 and rejects invalid stages', () => {
   const laterStage = { ...config,
     originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes',

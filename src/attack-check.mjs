@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if ([3, 4, 5, 6, 7, 8, 9].includes(config.step)) return runStep3Checks(config);
+  if ([3, 4, 5, 6, 7, 8, 9, 10].includes(config.step)) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -135,7 +135,7 @@ async function runStep3Checks(config) {
       }
     }
   }
-  if (config.step === 8 || config.step === 9) {
+  if ([8, 9, 10].includes(config.step)) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
     const { normal, suspicious } = fixtureRequests();
@@ -160,7 +160,7 @@ async function runStep3Checks(config) {
       expected: '로컬 단건 읽기·수정 허용, 전체 목록·공지 쓰기·미등록 거부, 복합 추가 확인 및 재확인 허용',
       observed: `로컬 가상 요청 실행 ${observations.join(', ')}; 운영 연결·심판 미확인` });
   }
-  if (config.step === 9) {
+  if ([9, 10].includes(config.step)) {
     const { detect } = await import('./detect.mjs');
     const { checkDetection } = await import('../scripts/detect-test.mjs');
     const checks = await checkDetection(detect);
@@ -170,6 +170,23 @@ async function runStep3Checks(config) {
     results.push({ attackId: 'revocation_and_timing',
       expected: '심판이 특정 가상 기기 실제 회수·경과 시간·정상 기기 유지를 확인',
       observed: '미실행; 회수 API·권한 변경 없음; 실제 회수·시간·정상 기기 운영 유지와 S09_NO_PROPOSAL 해소 미확인' });
+  }
+  if (config.step === 10) {
+    if (config.restoreRoute !== '/api/notes/restore') throw new Error('복원 경로 설정을 구현과 대조해 주세요.');
+    let observed;
+    try {
+      const response = await fetch(new URL(config.restoreRoute, app), {
+        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
+        headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      observed = `실제 비로그인 POST HTTP ${response.status}; ${response.status === 401 ? '기대 상태 일치' : '기대 상태 불일치'}; 응답 본문 미기록`;
+      await response.body?.cancel();
+    } catch {
+      observed = '비로그인 POST 시도했으나 HTTP 결과 미확인';
+    }
+    results.push({ attackId: 'restore_backup_verification',
+      expected: '비로그인 복원 401; 안전 사본 재검증·버전·범위 확인 후 B 한 건 복원 및 다른 자료·감사 보존',
+      observed: `${observed}; 실제 안전 사본·정책 복원·B 자료 복원·사본 일치·보존·복구 뒤 1~9단계 재시험 미실행; S10_BACKUP_UNVERIFIED 해소 미확인` });
   }
   return results;
 }

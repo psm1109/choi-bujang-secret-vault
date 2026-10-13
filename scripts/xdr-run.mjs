@@ -58,7 +58,7 @@ export async function runXdr({ root, moduleKey, resolveVerifiedTarget,
   const outDir = join(root, 'xdr', moduleKey);
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-  if (moduleKey === 'web-injection' || moduleKey === 'known-cve' || moduleKey === 'persistence' || moduleKey === 'privilege') {
+  if (moduleKey === 'web-injection' || moduleKey === 'known-cve' || moduleKey === 'persistence' || moduleKey === 'privilege' || moduleKey === 'exfiltration') {
     const { respond } = await import(pathToFileURL(join(outDir, 'respond.mjs')).href);
     await respond({ root, moduleKey, decisions, resolveVerifiedTarget });
   } else {

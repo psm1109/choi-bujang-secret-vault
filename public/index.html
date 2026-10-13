@@ -35,6 +35,14 @@
     <div class="eyebrow">BYTE BACK · 나만의 접속 앱</div>
     <h1>최 부장 비밀 자료실</h1>
     <p>아래 기록은 모두 실습을 위해 만든 가상 자료입니다.</p>
+    <section id="operations" class="auth" aria-labelledby="operations-heading">
+      <h2 id="operations-heading">탈환 작전실</h2>
+      <p>판정 규칙·탐지 사건·회수 상태·복구 버전을 확인합니다. 수치는 이번 응답의 가린 서버 기록과 대조하며, 기록이 없는 결과는 미실행입니다.</p>
+      <button type="button" disabled>작전실 새로고침</button>
+      <p data-message role="status">로그인 후 서버 기록을 확인할 수 있습니다.</p>
+      <div data-content aria-live="polite"></div>
+      <p>화면의 성공 문구는 통과 근거가 아닙니다. 마지막 총공세 클리어는 12단계 통과와 41종 공격 방어로 판정하며 차별화는 가산 과제입니다.</p>
+    </section>
     <section class="auth" aria-labelledby="app-heading">
       <h2 id="app-heading">자료실 접속 상태</h2>
       <p id="connection-status" role="status">연결 상태를 확인하는 중입니다.</p>
@@ -74,6 +82,9 @@
   </main>
   <script type="module">
     const { createDeviceAccess } = await import('/device-access.js');
+    const { createOperationsPanel } = await import('/operations.js');
+    const operations = createOperationsPanel({ root: document.querySelector('#operations') });
+    window.addEventListener('offline', () => operations.invalidate());
     const form = document.querySelector('#login-form');
     const email = document.querySelector('#email');
     const password = document.querySelector('#password');
@@ -246,6 +257,7 @@
     };
     const renderSession = session => {
       currentSession = session;
+      operations.setSession(session);
       const signedIn = Boolean(session?.user && session?.access_token);
       form.hidden = signedIn;
       logout.hidden = !signedIn;

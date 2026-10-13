@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { createDeviceAccess } from '../public/device-access.js';
+import { createOperationsPanel } from '../public/operations.js';
 import handler from '../api/device-approval.js';
 
 const session = { user: { id: 'fixture-user' }, access_token: 'fixture-in-memory',
@@ -93,7 +94,8 @@ test('unconnected server never invents approval even with forged device flags', 
 
 const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const inline = html.match(/<script type="module">([\s\S]*?)<\/script>/u)[1]
-  .replace("const { createDeviceAccess } = await import('/device-access.js');", '');
+  .replace("const { createDeviceAccess } = await import('/device-access.js');", '')
+  .replace("const { createOperationsPanel } = await import('/operations.js');", '');
 const flush = async () => { for (let i = 0; i < 6; i++) await new Promise(done => setImmediate(done)); };
 
 async function screen(state) {
@@ -102,6 +104,8 @@ async function screen(state) {
   const events = new Map();
   function element() {
     return { hidden: true, value: '', textContent: '', children: [], callbacks: {},
+      get ownerDocument() { return document; },
+      querySelector(name) { return document.querySelector(`#operations ${name}`); },
       addEventListener(name, callback) { this.callbacks[name] = callback; },
       replaceChildren(...children) { this.children = children; },
       append(...children) { this.children.push(...children); }, reset() {}, focus() {} };
@@ -129,6 +133,7 @@ async function screen(state) {
     document, window: { addEventListener(name, callback) { events.set(name, callback); } },
     navigator: { onLine: true }, AbortController, fetch,
     createDeviceAccess: options => createDeviceAccess({ ...options, fetchStatus: fetch, schedule: () => 0 }),
+    createOperationsPanel: options => createOperationsPanel({ ...options, fetchReport: fetch, online: () => true }),
   });
   await flush();
   return { requests, elements, events, state(value) { deviceState = value; },

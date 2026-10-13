@@ -1,5 +1,17 @@
 # BYTE BACK 방어전 시작 틀 R5
 
+## 보너스 xdr-05 저장점
+
+권한 가로채기 `xdr/privilege/decide.mjs`는 `patterns.json`과 동일한 상단 상수로 관리자 그룹 추가·해제 직후 재가입, 평소와 다른 관리자 명령·권한 사용, 업무 시간 밖 권한 사용을 판단합니다. import·파일 접근·외부 문의 없이 확신도 0.85 이상은 `block`, 0.5 이상은 `alert`, 그 아래는 `record`로 반환하며 이유에는 고정된 패턴 이름만 남깁니다. 확인용 `read-alerts.mjs`는 다섯 항목만 추출하고 의심되는 비밀값을 가리며 판정기에서 불러오지 않습니다.
+
+`respond.mjs`는 알림·차단 후보를 `xdr/alerts.log`에 한 줄씩 기록하고, 검증된 대상의 확신도 0.85 이상 차단 후보에만 대상 지문·근거 경보 번호·10분 만료가 있는 `xdr/privilege/deny-rules.json` 규칙을 만듭니다. 정상 기록 대상은 삽입에서 제외하고 기존 privilege 임시 차단도 해제합니다. 중복은 만료를 연장하지 않으며 만료된 규칙은 판정에 쓰지 않습니다. 기존 규칙은 보존하고 로그·임시 규칙은 Git에서 제외합니다.
+
+다시 실행: `npm.cmd run xdr:run -- privilege` (PowerShell의 npm.ps1 실행 제한을 피합니다). 2026-10-13 재실행 결과는 `xdr/privilege/result.json`의 `block` 9건, `alert` 8건, `record` 9건입니다. 애매한 가상 경보 pv-10~pv-17은 모두 `alert`이고, 정상 가상 경보 pv-18~pv-26은 모두 `record`이며 오차단은 0건입니다. 불확실한 그룹 변경·계정 종류 조회도 차단 없이 알림으로 유지합니다. 터미널에서 실행한 뒤 결과 파일을 눌러 `counts`와 `decisions`를 확인합니다. 명확한 공격은 차단 후보, 애매한 근거는 알림, 정상 활동은 기록이어야 합니다.
+
+검증 명령: `node --experimental-vm-modules --test --test-isolation=none test/privilege-decide.test.mjs test/privilege-respond.test.mjs`. 이번 저장점에서 11개가 통과했습니다. 가상 매핑·시험 판정기로 현재 경보 26건을 두 번 흘려 공격 9건만 거부하고 알림·기록 17건은 통과하며 중복·만료·기존 거부를 보존함을 확인했습니다. 실제 심판 판정이나 운영 세션 회수의 증거는 아닙니다. CLI에는 검증된 대상 매핑이 없어 후보·알림만 기록합니다. 운영 연결에는 검증된 매핑·운영 허용 거부 코드·`createPrivilegeDecider` 호출 위치가 필요합니다. 기존 `src/decider.mjs`는 모두 거부하는 시작 틀이며 `RULE_IDS`에는 구현된 `starter.deny`만 유지합니다.
+
+설정의 단계 5, 기록된 배포 주소, 로그인 발급자·공개키 주소·대상, 허용 자료 경로 6개, 원본 `learning_notes` API 주소를 로컬 구현과 기존 문서에 대조했습니다. 서버의 실제 `SUPABASE_URL`과 현재 배포 상태는 미확인입니다. 설정과 `judgeIssuer`는 변경하지 않았고 기존 자료 API 자기 점검의 정상·거부 항목과 미실행 표시를 유지했습니다. 실제 배포·실제 계정 CRUD·운영 연결·심판·제출 묶음은 이번에 실행하지 않았으며 저장점은 로컬 커밋으로만 만들고 푸시하지 않습니다.
+
 ## 보너스 xdr-04 저장점
 
 지속성 경보의 `xdr/persistence/decide.mjs`는 파일 상단의 패턴 상수만 사용하며 import·인터넷·파일 접근 없이 판단합니다. 서비스 등록·변경, 낯선 예약 작업, 시작 폴더 변경의 근거를 맞춰 확신도 0.85 이상은 `block`, 0.5 이상은 `alert`, 그 아래는 `record`로 반환합니다. 이유에는 고정된 패턴 이름만 남깁니다. 확인용 `read-alerts.mjs`는 다섯 항목만 추출하고 의심되는 비밀값을 가리며 판정기에서 불러오지 않습니다.

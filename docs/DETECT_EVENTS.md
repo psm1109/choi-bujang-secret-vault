@@ -1,11 +1,29 @@
 # 9단계 탐지 연습 사건 계약
 
-`npm run detect:test`는 학생이 작성한 `src/detect.mjs`의 `detect(events)`에 가상 조회 사건을 전달합니다. 각 사건은 다음 세 값만 가집니다.
+`npm run detect:test`는 학생이 작성한 `src/detect.mjs`의 `detect(events)`에 가상 조회 사건을 전달합니다. 기존 사건의 기본 형식은 다음과 같습니다.
 
 ```js
 { at: '2026-10-01T00:00:00.000Z', method: 'GET', identity: { sub: 'learner_fixture' } }
 ```
 
-같은 `identity.sub`의 `GET` 사건이 어느 10분 구간에서든 **120건을 넘을 때만** `{ action: 'propose_revocation', reasonCode: 'burst_read', subject: '해당 sub' }`를 돌려줍니다. 그 밖에는 `{ action: 'observe' }`입니다. 정확히 120건은 회수 제안 대상이 아닙니다. 다른 사용자의 사건을 합산하거나 10분 밖의 사건을 같은 묶음으로 세지 않습니다.
+## 복합 의심 사건용 로컬 연습 확장
+
+네트워크와 다량 조회가 함께인 규칙을 연습하려고 사건에 선택적으로 다음 신호를 제공합니다. 이 확장은 운영 엔진에 이미 연결된 사건 형식이라는 뜻이 아닙니다.
+
+```js
+{
+  at: '2026-10-01T00:00:00.000Z',
+  method: 'GET',
+  identity: { sub: 'learner_fixture' },
+  deviceId: 'aaaaaaaaaaaaaaaa',
+  signals: { source: 'judge_fixture', network: 'unusual' }
+}
+```
+
+같은 `identity.sub`·`deviceId`의 GET 중 `signals.source`가 `judge_fixture`이고 `signals.network`가 `unusual`인 사건만 셉니다. 어느 10분 구간에서든 **120건을 넘을 때만** `{ action: 'propose_revocation', reasonCode: 'burst_read', subject: '해당 sub' }`를 반환합니다. 이는 의심에 따른 회수 제안이며 직접 회수하지 않습니다. 정확히 120건과 정확히 10분 경계를 시험합니다. 순서가 뒤섞여 있어도 사건 시각으로 비교합니다.
+
+그 밖에는 `{ action: 'observe' }`입니다. 네트워크 이상만 있거나 정상 네트워크의 다량 조회이면 제안하지 않습니다. 지역은 읽거나 판단하지 않습니다. 신호 누락·다른 출처·알 수 없는 네트워크와 누락·잘못된 UTC 시각은 탐지 근거로 세지 않습니다. 기기 정보가 없는 기존 사건은 별도 묶음으로 유지하며 기기값을 생성하지 않습니다. 사용자·기기별 사건을 합산하지 않고 10분 밖 사건도 같은 구간으로 세지 않습니다.
+
+입력 정리 함수는 제공된 가명 사용자·기기·메서드·선택적 판정(`allow`, `deny`, `step_up`)만 복사합니다. 탐지 함수는 위 복합 규칙에 필요한 시각과 가상 네트워크 신호를 추가로 읽습니다. 메모·토큰·실명·지역·전체 사건을 복사하거나 저장·출력하지 않습니다. 사건 판정값만으로 의심을 확정하지 않습니다.
 
 이 파일의 사건 모양은 **로컬 연습용**입니다. 브라우저가 보낸 사용자 번호를 신원으로 취급하지 않습니다. 운영 반 엔진이 검증한 사건을 전달하고 회수 제안을 집행하는 경로는 별도로 연결·시험해야 합니다. 이 명령의 통과를 실제 접속 차단이나 심판 판정으로 표시하지 않습니다.

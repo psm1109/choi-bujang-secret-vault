@@ -108,6 +108,49 @@ test('stage 10 bundle reports only the anonymous restore attempt and keeps recov
   }
 });
 
+test('stage 11 bundle separates actual manifest and endpoint requests from unconnected approval', async () => {
+  const originalFetch = globalThis.fetch;
+  const config11 = { ...config, step: 11, restoreRoute: '/api/notes/restore',
+    originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes', allowedRoutes: ['GET /api/notes/:id'] };
+  const calls = [];
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(input);
+      calls.push([url.pathname, init.method ?? 'GET']);
+      assert.equal(new Headers(init.headers).has('authorization'), false);
+      if (url.pathname === '/aleph.json') return new Response(JSON.stringify({ ...config11, step: 10 }));
+      if (url.pathname === '/') return new Response('<html></html>', { headers: { 'x-content-type-options': 'nosniff' } });
+      if (url.pathname === '/manifest.webmanifest') return new Response(JSON.stringify({
+        name: '최 부장 비밀 자료실', start_url: '/', display: 'standalone',
+        icons: [192, 512].map(size => ({ src: `/icons/vault-${size}.png`, sizes: `${size}x${size}` })),
+      }));
+      if (url.pathname === '/api/device-approval') {
+        if (init.method === 'POST') {
+          assert.equal(init.body, '{}');
+          assert.equal(init.headers.Origin, url.origin);
+        }
+        return new Response(JSON.stringify({ schema: 'aleph.device-access.v1', state: 'unavailable', registered: false }), { status: 503 });
+      }
+      return new Response('private_fixture_not_recorded', { status: url.pathname === '/data.json' ? 404 : 401 });
+    };
+    const results = await runAttackChecks(config11);
+    assert.equal(calls.length, 13);
+    assert.equal(results.length, 19);
+    assert.equal(new Set(results.map(item => item.attackId)).size, 19);
+    assert.deepEqual(calls.filter(([path]) => path === '/api/device-approval'), [
+      ['/api/device-approval', 'GET'], ['/api/device-approval', 'POST'],
+    ]);
+    assert.match(results.find(item => item.attackId === 'deployment_config').observed, /설정 불일치/u);
+    assert.match(results.find(item => item.attackId === 'app_manifest').observed, /HTTP 200.*로컬 구현과 일치/u);
+    assert.match(results.find(item => item.attackId === 'device_request_endpoint').observed, /HTTP 503.*등록 증거 아님/u);
+    assert.match(results.find(item => item.attackId === 'device_approval_live_flow').observed, /미실행.*계약 미연결/u);
+    assert.match(results.find(item => item.attackId === 'authenticated_and_database_checks').observed, /미실행/u);
+    assert.match(results.find(item => item.attackId === 'restore_backup_verification').observed, /HTTP 401/u);
+    for (const item of results) assert.ok(item.expected.length <= 300 && item.observed.length <= 300);
+    assert.equal(JSON.stringify(results).includes('private_fixture_not_recorded'), false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('build identity accepts stages 6 through 12 and rejects invalid stages', () => {
   const laterStage = { ...config,
     originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes',

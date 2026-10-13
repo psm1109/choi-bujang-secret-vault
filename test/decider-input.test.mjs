@@ -17,11 +17,9 @@ const denied = async request => {
     ['decision', 'reasonCode', 'requestId', 'ruleIds', 'schema']);
 };
 
-test('engine fixtures and unavailable live signals preserve existing decisions', async () => {
-  const { normal, suspicious } = fixtureRequests();
+test('normal engine fixtures and unavailable live signals preserve existing decisions', async () => {
+  const { normal } = fixtureRequests();
   assert.equal((await decide(normal)).decision, 'allow');
-  // 이번 작업은 복합 이상 접속의 재로그인 규칙을 추가하지 않습니다.
-  assert.equal((await decide(suspicious)).decision, 'allow');
   const live = { ...normal, signals: {
     source: 'none', region: 'unknown', network: 'unknown', hour: null,
   }, headers: forgedHeaders };

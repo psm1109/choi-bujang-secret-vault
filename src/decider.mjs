@@ -1,7 +1,7 @@
 // ALEPH SDP 엔진이 확인한 요청만 받는 학생 판정기 시작점입니다.
-// 6단계: 등록된 기기의 자료실 읽기만 허용하고 나머지는 기본 거부합니다.
+// 등록 기기의 자료실 읽기에 7단계 복합 가상 사건 추가 확인을 적용합니다.
 // 요청 본문의 userId, role, 기기 키, 토큰을 별도로 믿거나 저장하지 마세요.
-export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered']);
+export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'unusual_access']);
 
 // 출처는 엔진 계약의 signals.source만 확인합니다. 클라이언트 헤더로 보완하지 않습니다.
 // judge_fixture는 가상 사건이며 실제 위치 증거가 아닙니다. unknown은 정상값이 아닙니다.
@@ -41,6 +41,22 @@ export async function decide(request) {
       || (request.route === 'GET /api/notes' && request.path === '/api/notes')
       || (request.route === 'GET /api/notes/:id' && /^\/api\/notes\/[^/?#]+$/u.test(request.path)));
   if (readingNotes) {
+    // 제공된 가상 사건 형식의 risk_signal을 사용하며 지역은 판단하지 않습니다.
+    const unusualAccess = request.signals.source === 'judge_fixture'
+      && Number.isInteger(request.signals.hour) && request.signals.hour < 6
+      && request.signals.network === 'unusual'
+      && request.recentEvents.some(event => event.kind === 'risk_signal'
+        && event.ageSeconds <= 60 && event.count >= 20);
+    if (unusualAccess) {
+      // 새 로그인 시각 확인은 제공 엔진의 역할입니다. stepUp 값만으로 생략하지 않습니다.
+      return {
+        schema: 'aleph.decision.v1',
+        requestId: request.requestId,
+        decision: 'step_up',
+        reasonCode: 'step_up_required',
+        ruleIds: ['device_registered', 'unusual_access'],
+      };
+    }
     return {
       schema: 'aleph.decision.v1',
       requestId: request.requestId,

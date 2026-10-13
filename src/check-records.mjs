@@ -9,11 +9,15 @@ export function summarizeCheckRecords(bundle, expectedCommit) {
     throw new TypeError('invalid_check_records');
   }
   const ids = new Set();
+  const informationalIds = new Set(['deployment_config', 'security_header', 'browser_public_key']);
   const records = bundle.attackAttempts.map(item => {
+    const informational = informationalIds.has(item?.attackId);
     if (!item || !/^[a-z0-9][a-z0-9_.-]{0,79}$/u.test(item.attackId ?? '') || ids.has(item.attackId)
         || !Number.isInteger(item.stage) || item.stage < 1 || item.stage > 11
         || !['blocked', 'breached', 'not_run'].includes(item.result)
-        || (item.result === 'not_run' ? item.observed !== 'not_run'
+        || (informational && item.result !== 'not_run')
+        || (item.result === 'not_run' ? item.observed !== 'not_run' && (!informational
+          || !/^HTTP [1-5][0-9]{2}$/u.test(item.observed ?? ''))
           : !/^HTTP [1-5][0-9]{2}(?:; jsonReady=(?:true|false))?$/u.test(item.observed ?? ''))) {
       throw new TypeError('invalid_check_record');
     }

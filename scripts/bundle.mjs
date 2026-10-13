@@ -86,7 +86,10 @@ try {
     }
     if (keys.includes('result') && (!Number.isInteger(attempt.stage) || attempt.stage < 1 || attempt.stage > 11
         || !['blocked', 'breached', 'not_run'].includes(attempt.result)
-        || (attempt.result === 'not_run') !== (attempt.observed === 'not_run'))) {
+        || (['deployment_config', 'security_header', 'browser_public_key'].includes(attempt.attackId)
+          ? attempt.result !== 'not_run' || (attempt.observed !== 'not_run'
+            && !/^HTTP [1-5][0-9]{2}$/u.test(attempt.observed))
+          : (attempt.result === 'not_run') !== (attempt.observed === 'not_run')))) {
       fail('점검 단계·결과·미실행 표기를 확인해 주세요.');
     }
   }

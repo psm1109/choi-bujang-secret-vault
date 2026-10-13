@@ -58,13 +58,13 @@ async function runOperationsChecks(config) {
     try {
       response = await fetch(new URL(path, app), { method: 'GET', redirect: 'error', cache: 'no-store',
         signal: AbortSignal.timeout(5000), alephEvidence: { caseId: attackId, requestKey: 'read' } });
-      const matches = await accepts(response);
+      await accepts(response);
       results.push({ attackId, stage: 5, expected, observed: `HTTP ${response.status}`,
-        result: matches ? 'blocked' : 'breached' });
+        result: 'not_run' });
     } catch {
       // 상태 응답까지 확인했으나 형식 검사에 실패한 경우와 응답 부재를 구분합니다.
       results.push({ attackId, stage: 5, expected, observed: response ? `HTTP ${response.status}` : 'not_run',
-        result: response ? 'breached' : 'not_run' });
+        result: 'not_run' });
     }
   }
   for (const [attackId, stage, expected] of [

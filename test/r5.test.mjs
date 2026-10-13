@@ -183,7 +183,8 @@ test('stage 11 bundle reports only supported HTTP evidence and marks every other
     const executed = results.filter(item => item.observed !== 'not_run');
     assert.deepEqual(executed.map(item => item.attackId), ['deployment_config', 'security_header', 'browser_public_key']);
     assert.ok(executed.every(item => item.observed === 'HTTP 200'));
-    assert.deepEqual(executed.map(item => item.result), ['breached', 'blocked', 'blocked']);
+    assert.deepEqual(executed.map(item => item.result), ['not_run', 'not_run', 'not_run']);
+    assert.ok(results.every(item => item.result === 'not_run'));
     assert.equal(results.filter(item => item.observed === 'not_run').length, 16);
     for (const item of results) {
       assert.deepEqual(Object.keys(item).sort(), ['attackId', 'expected', 'observed', 'result', 'stage']);

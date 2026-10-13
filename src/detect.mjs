@@ -32,7 +32,8 @@ export function detect(events) {
   const subjects = new Map();
   for (let index = 0; index < inputs.length; index += 1) {
     const input = inputs[index];
-    if (input.method !== 'GET') continue;
+    // 확인된 가상 사건의 기기 ID가 없으면 회수 대상을 추측하지 않습니다.
+    if (input.method !== 'GET' || input.deviceId === undefined) continue;
     const signals = events[index].signals;
     // 로컬 가상 사건의 명시적 이상 신호만 사용합니다. 지역·헤더는 읽지 않습니다.
     if (!signals || signals.source !== 'judge_fixture' || signals.network !== 'unusual') continue;
@@ -42,18 +43,17 @@ export function detect(events) {
     if (!Number.isFinite(time) || new Date(time).toISOString() !== at) continue;
     if (!subjects.has(input.subject)) subjects.set(input.subject, new Map());
     const devices = subjects.get(input.subject);
-    // 기기 정보가 없는 기존 연습 사건도 별도 묶음으로 유지합니다.
     if (!devices.has(input.deviceId)) devices.set(input.deviceId, []);
     devices.get(input.deviceId).push(time);
   }
   for (const [subject, devices] of subjects) {
-    for (const times of devices.values()) {
+    for (const [deviceId, times] of devices) {
       times.sort((a, b) => a - b);
       let first = 0;
       for (let last = 0; last < times.length; last += 1) {
         while (times[last] - times[first] > 10 * 60 * 1000) first += 1;
         if (last - first + 1 > 120) {
-          return { action: 'propose_revocation', reasonCode: 'burst_read', subject };
+          return { action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId };
         }
       }
     }

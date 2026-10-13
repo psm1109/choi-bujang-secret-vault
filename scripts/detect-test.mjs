@@ -4,12 +4,13 @@ import { isDeepStrictEqual } from 'node:util';
 
 const START = Date.UTC(2026, 9, 1, 0, 0, 0);
 const subject = 'learner_fixture';
+const deviceId = 'aaaaaaaaaaaaaaaa';
 
 function reads(count, { intervalSeconds = 2, owner = subject, start = START,
-  network = 'usual', source = 'judge_fixture' } = {}) {
+  network = 'usual', source = 'judge_fixture', device = deviceId } = {}) {
   return Array.from({ length: count }, (_, index) => ({
     at: new Date(start + index * intervalSeconds * 1000).toISOString(),
-    method: 'GET', identity: { sub: owner },
+    method: 'GET', identity: { sub: owner }, deviceId: device,
     signals: { source, network },
   }));
 }
@@ -18,9 +19,9 @@ const cases = [
   { name: '정상 조회 30건', events: reads(30), expected: { action: 'observe' } },
   { name: '이상 네트워크·10분 안에 120건', events: reads(120, { network: 'unusual' }), expected: { action: 'observe' } },
   { name: '복합 의심·10분 안에 121건', events: reads(121, { network: 'unusual' }), expected: {
-    action: 'propose_revocation', reasonCode: 'burst_read', subject } },
+    action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId } },
   { name: '복합 의심·폭주 조회 200건', events: reads(200, { network: 'unusual' }), expected: {
-    action: 'propose_revocation', reasonCode: 'burst_read', subject } },
+    action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId } },
   { name: '서로 다른 사용자 각 100건', events: [...reads(100, { network: 'unusual' }),
     ...reads(100, { owner: 'other_fixture', network: 'unusual' })].sort((a, b) => a.at.localeCompare(b.at)),
   expected: { action: 'observe' } },
@@ -34,6 +35,11 @@ const cases = [
     expected: { action: 'observe' } },
   { name: '클라이언트 출처·다량 조회', events: reads(200, { source: 'client', network: 'unusual' }),
     expected: { action: 'observe' } },
+  { name: '대상 기기 누락·복합 의심', events: reads(200, { network: 'unusual' })
+    .map(({ deviceId, ...event }) => event), expected: { action: 'observe' } },
+  { name: '정상 기기와 함께 있어도 의심 기기 하나만 제안', events: [
+    ...reads(200, { device: 'bbbbbbbbbbbbbbbb' }), ...reads(121, { network: 'unusual' }),
+  ], expected: { action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId } },
 ];
 
 // This is a practice contract, not a live engine assertion or judge score.

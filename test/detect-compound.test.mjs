@@ -11,7 +11,8 @@ const reads = (count, { interval = 2_000, subject = 'learner_fixture',
     identity: { sub: subject }, deviceId, signals: { source: 'judge_fixture', network },
   }));
 const observe = { action: 'observe' };
-const proposal = { action: 'propose_revocation', reasonCode: 'burst_read', subject: 'learner_fixture' };
+const proposal = { action: 'propose_revocation', reasonCode: 'burst_read',
+  subject: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa' };
 
 test('compound practice cases detect only the combined pattern', async () => {
   for (const result of await checkDetection(detect)) assert.equal(result.passed, true, result.name);
@@ -58,4 +59,16 @@ test('compound detection never reads private fields or region and retains no his
   assert.deepEqual(detect(events), proposal);
   assert.deepEqual(detect([]), observe);
   assert.deepEqual(detect(reads(1)), observe);
+});
+
+test('proposals identify just one supplied device and never fall back to a user-wide target', () => {
+  const missingDevice = reads(200).map(({ deviceId, ...event }) => event);
+  assert.deepEqual(detect(missingDevice), observe);
+  const events = [...missingDevice, ...reads(200, { network: 'usual', deviceId: 'cccccccccccccccc' }),
+    ...reads(121, { deviceId: 'bbbbbbbbbbbbbbbb' }), ...reads(121)];
+  const snapshot = structuredClone(events);
+  const result = detect(events);
+  assert.deepEqual(result, { ...proposal, deviceId: 'bbbbbbbbbbbbbbbb' });
+  assert.deepEqual(Object.keys(result).sort(), ['action', 'deviceId', 'reasonCode', 'subject']);
+  assert.deepEqual(events, snapshot);
 });

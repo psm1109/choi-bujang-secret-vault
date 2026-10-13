@@ -151,7 +151,7 @@ test('stage 10 bundle sends no restore request and marks recovery not_run', asyn
   }
 });
 
-test('stage 11 bundle separates actual manifest and endpoint requests from unconnected approval', async () => {
+test('stage 11 bundle reports only supported HTTP evidence and marks every other check not_run', async () => {
   const originalFetch = globalThis.fetch;
   const config11 = { ...config, step: 11, restoreRoute: '/api/notes/restore',
     originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes', allowedRoutes: ['GET /api/notes/:id'] };
@@ -173,20 +173,28 @@ test('stage 11 bundle separates actual manifest and endpoint requests from uncon
       return new Response('private_fixture_not_recorded', { status: url.pathname === '/data.json' ? 404 : 401 });
     };
     const results = await runAttackChecks(config11);
-    assert.equal(calls.length, 8);
+    assert.deepEqual(calls, [['/aleph.json', 'GET'], ['/', 'GET']]);
     assert.equal(results.length, 19);
     assert.equal(new Set(results.map(item => item.attackId)).size, 19);
-    assert.deepEqual(calls.filter(([path]) => path === '/api/device-approval'), [
-      ['/api/device-approval', 'GET'],
-    ]);
     assert.match(results.find(item => item.attackId === 'deployment_config').observed, /설정 불일치/u);
-    assert.match(results.find(item => item.attackId === 'app_manifest').observed, /HTTP 200.*로컬 구현과 일치/u);
-    assert.equal(results.find(item => item.attackId === 'device_request_endpoint').observed, 'not_run');
-    assert.match(results.find(item => item.attackId === 'device_approval_live_flow').observed, /미실행.*계약 미연결/u);
-    assert.match(results.find(item => item.attackId === 'authenticated_and_database_checks').observed, /미실행/u);
-    assert.equal(results.find(item => item.attackId === 'restore_backup_verification').observed, 'not_run');
+    const executed = results.filter(item => item.observed !== 'not_run');
+    assert.deepEqual(executed.map(item => item.attackId), ['deployment_config', 'security_header', 'browser_public_key']);
+    assert.ok(executed.every(item => item.observed.includes('HTTP 200')));
+    assert.equal(results.filter(item => item.observed === 'not_run').length, 16);
     for (const item of results) assert.ok(item.expected.length <= 300 && item.observed.length <= 300);
     assert.equal(JSON.stringify(results).includes('private_fixture_not_recorded'), false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('stage 11 missing HTTP evidence never creates executed results or synthetic attack IDs', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => { throw new Error('fixture_network_failure'); };
+    const results = await runAttackChecks({ ...config, step: 11 });
+    assert.equal(results.length, 19);
+    assert.ok(results.every(item => item.observed === 'not_run'));
+    assert.equal(new Set(results.map(item => item.attackId)).size, 19);
+    assert.equal(results.some(item => item.attackId === 'first_page_checks'), false);
   } finally { globalThis.fetch = originalFetch; }
 });
 

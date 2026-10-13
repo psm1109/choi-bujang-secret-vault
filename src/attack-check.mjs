@@ -72,11 +72,37 @@ async function runStep3Checks(config) {
             observed: `실제 GET / HTTP ${response.status}; ${response.ok && !/sb_publishable_|eyJ[A-Za-z0-9_-]{12,}\.eyJ[A-Za-z0-9_-]{12,}\.|@supabase\/supabase-js/u.test(html) ? '검사 패턴 없음' : '조건 미충족'}; 응답 본문 미기록` });
         }
       } catch {
+        if (config.step === 11) {
+          for (const attackId of path === '/aleph.json' ? ['deployment_config'] : ['security_header', 'browser_public_key']) {
+            results.push({ attackId, expected: path === '/aleph.json'
+              ? '배포 설정의 원본 API 주소·허용 경로 확인' : '첫 화면 보안 헤더·공개 키 부재 확인', observed: 'not_run' });
+          }
+          continue;
+        }
         results.push({ attackId: path === '/aleph.json' ? 'deployment_config' : 'first_page_checks',
           expected: path === '/aleph.json' ? '배포 설정의 원본 API 주소·허용 경로 확인' : '첫 화면 보안 헤더·공개 키 부재 확인',
           observed: '요청 시도했으나 응답 확인 실패; 미확인' });
       }
     }
+  }
+  if (config.step === 11) {
+    // 12단계 실행 기록 대조에서 확인된 세 HTTP 점검만 위에서 수행합니다.
+    // 나머지는 운영 기록 연결 전까지 실행하지 않으며 로컬 연습도 섞지 않습니다.
+    for (const [attackId, method, path, status] of checks) {
+      results.push({ attackId, expected: `비로그인 ${method} ${path}: HTTP ${status}`, observed: 'not_run' });
+    }
+    for (const [attackId, expected] of [
+      ['resource_zone_fixtures', '단건 허용·전체 목록 및 공지 쓰기 거부의 실제 운영 결과'],
+      ['detection_fixtures', '운영 사건 전달과 폭주 탐지의 실제 결과'],
+      ['revocation_and_timing', '특정 기기 회수·경과 시간·정상 기기 유지의 실제 결과'],
+      ['restore_backup_verification', '검증된 사본 복원·버전·자료 일치와 보존의 실제 결과'],
+      ['authenticated_and_database_checks', '등록 확인 뒤 A/B 본인 CRUD·상대 접근 거부·원본 API 직접 접근 거부'],
+      ['app_manifest', '배포 manifest에 앱 이름·시작 주소·192/512 아이콘 설정'],
+      ['device_status_endpoint', '운영 승인 미연결 경로는 503·unavailable·registered:false'],
+      ['device_request_endpoint', '승인 요청만으로 권한을 부여하지 않음'],
+      ['device_approval_live_flow', '실제 등록 확인 뒤 정상 화면과 승인 전 자료 차단'],
+    ]) results.push({ attackId, expected, observed: 'not_run' });
+    return results;
   }
   for (const [attackId, method, path, expectedStatus] of checks) {
     // 제출 격리는 읽기 요청만 허용합니다. 쓰기 시험을 보낸 척하지 않습니다.
@@ -176,46 +202,6 @@ async function runStep3Checks(config) {
     results.push({ attackId: 'restore_backup_verification',
       expected: '비로그인 복원 401; 안전 사본 재검증·버전·범위 확인 후 B 한 건 복원 및 다른 자료·감사 보존',
       observed: 'not_run' });
-  }
-  if (config.step === 11) {
-    results.push({ attackId: 'authenticated_and_database_checks',
-      expected: '등록 확인 뒤 A/B 본인 CRUD, 상대 접근404·소유자 변경403, 원본 API 직접 접근 거부',
-      observed: '실제 등록 기기·계정 CRUD·DB 정책·원본 API 직접 요청 미실행; 기존 로컬 가상 시험과 운영 결과는 구분' });
-    for (const [attackId, method, path] of [
-      ['app_manifest', 'GET', '/manifest.webmanifest'],
-      ['device_status_endpoint', 'GET', '/api/device-approval'],
-      ['device_request_endpoint', 'POST', '/api/device-approval'],
-    ]) {
-      if (!['GET', 'HEAD'].includes(method)) {
-        results.push({ attackId, expected: '운영 승인 미연결 경로는 503·unavailable·registered:false; 요청 버튼만으로 승인하지 않음',
-          observed: 'not_run' });
-        continue;
-      }
-      let observed;
-      try {
-        const response = await fetch(new URL(path, app), {
-          method, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(5000),
-        });
-        let data;
-        try { data = await response.json(); } catch {}
-        const matches = attackId === 'app_manifest'
-          ? response.ok && data?.name === '최 부장 비밀 자료실' && data.start_url === '/'
-            && data.display === 'standalone' && [192, 512].every(size => data.icons?.some(icon =>
-              icon.src === `/icons/vault-${size}.png` && icon.sizes === `${size}x${size}`))
-          : response.status === 503 && data?.schema === 'aleph.device-access.v1'
-            && data.state === 'unavailable' && data.registered === false;
-        observed = `실제 비로그인 ${method} ${path} HTTP ${response.status}; ${matches ? '로컬 구현과 일치' : '로컬 구현과 일치 미확인'}; 본문 미기록; 실제 기기 등록 증거 아님`;
-      } catch {
-        observed = `실제 비로그인 ${method} ${path} 요청 시도, HTTP 결과 미확인`;
-      }
-      results.push({ attackId,
-        expected: attackId === 'app_manifest' ? '배포 manifest에 앱 이름·시작 주소·192/512 아이콘 설정'
-          : '운영 승인 미연결 경로는 503·unavailable·registered:false; 요청 버튼만으로 승인하지 않음',
-        observed });
-    }
-    results.push({ attackId: 'device_approval_live_flow',
-      expected: '서버의 현재 기기 등록 확인 전 자료 없음, 확인 뒤 기존 화면 정상; 설치·요청만으로 승인 금지',
-      observed: '실제 승인 요청 접수·등록 기기 확인·화면 열림 미실행; 운영 승인 계약 미연결. 화면 가상 시험은 별도 시험 명령으로 확인하며 심판 결과 아님' });
   }
   return results;
 }

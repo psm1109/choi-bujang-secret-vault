@@ -18,6 +18,23 @@ test('compound fixture requests additional confirmation with a reason and preser
     signals: { ...suspicious.signals, region: 'local' } })).decision, 'step_up');
 });
 
+test('engine fixture region labels do not make normal and compound verdicts identical', async () => {
+  const { normal, suspicious } = fixtureRequests();
+  const ordinary = await decide({ ...normal,
+    signals: { ...normal.signals, region: 'region_a' } });
+  const unusual = await decide({ ...suspicious,
+    signals: { ...suspicious.signals, region: 'region_b' } });
+  assert.equal(ordinary.decision, 'allow');
+  assert.equal(unusual.decision, 'step_up');
+  assert.equal(unusual.reasonCode, 'step_up_required');
+  assert.equal((await decide({ ...normal,
+    signals: { ...normal.signals, region: 'region_b' } })).decision, 'allow');
+  for (const region of [undefined, null, '', [], {}]) {
+    assert.equal((await decide({ ...normal,
+      signals: { ...normal.signals, region } })).decision, 'deny');
+  }
+});
+
 test('each incomplete combination and region alone remain allowed', async () => {
   const { normal, suspicious } = fixtureRequests();
   const requests = [

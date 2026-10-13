@@ -9,7 +9,8 @@ function validConnectionInput(request) {
   const signals = request.signals;
   if (!signals || typeof signals !== 'object' || Array.isArray(signals)) return false;
   if (!['none', 'judge_fixture'].includes(signals.source)) return false;
-  if (!['local', 'foreign', 'unknown'].includes(signals.region)
+  // 계약에 없는 지역명 목록으로 정상·복합 사건을 같은 거부로 만들지 않습니다.
+  if (typeof signals.region !== 'string' || signals.region.length === 0
       || !['usual', 'unusual', 'unknown'].includes(signals.network)) return false;
   if (signals.hour !== null
       && (!Number.isInteger(signals.hour) || signals.hour < 0 || signals.hour > 23)) return false;

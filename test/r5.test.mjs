@@ -40,6 +40,42 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
 
+test('stage 9 bundle distinguishes detection practice from unexecuted revocation and keeps results bounded', async () => {
+  const originalFetch = globalThis.fetch;
+  const config9 = { ...config, step: 9,
+    originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes',
+    allowedRoutes: ['GET /api/notes/:id', 'PUT /api/notes/:id'] };
+  let requests = 0;
+  try {
+    globalThis.fetch = async (input, init) => {
+      requests += 1;
+      assert.equal(new Headers(init.headers).has('authorization'), false);
+      const path = new URL(input).pathname;
+      if (path === '/aleph.json') return new Response(JSON.stringify({ ...config9, step: 8 }));
+      if (path === '/') return new Response('<html></html>', { headers: { 'x-content-type-options': 'nosniff' } });
+      return new Response('fixture_body_should_not_be_recorded', { status: path === '/data.json' ? 404 : 401 });
+    };
+    const results = await runAttackChecks(config9);
+    assert.equal(requests, 9);
+    assert.equal(results.length, 19);
+    assert.equal(new Set(results.map(item => item.attackId)).size, results.length);
+    assert.match(results.find(item => item.attackId === 'deployment_config').observed, /설정 불일치/u);
+    assert.match(results.find(item => item.attackId === 'resource_zone_fixtures').observed, /read:allow, update:allow, list:deny/u);
+    assert.match(results.find(item => item.attackId === 'detection_fixtures').observed, /로컬 가상 사건 19\/19 통과/u);
+    assert.match(results.find(item => item.attackId === 'revocation_and_timing').observed, /^미실행;/u);
+    const serialized = JSON.stringify(results);
+    for (const value of ['fixture_body_should_not_be_recorded', 'learner_fixture', 'aaaaaaaaaaaaaaaa']) {
+      assert.equal(serialized.includes(value), false);
+    }
+    for (const item of results) {
+      assert.deepEqual(Object.keys(item).sort(), ['attackId', 'expected', 'observed']);
+      assert.ok(item.expected.length <= 300 && item.observed.length <= 300);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('build identity accepts stages 6 through 12 and rejects invalid stages', () => {
   const laterStage = { ...config,
     originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes',

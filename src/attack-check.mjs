@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if ([3, 4, 5, 6, 7, 8].includes(config.step)) return runStep3Checks(config);
+  if ([3, 4, 5, 6, 7, 8, 9].includes(config.step)) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -111,7 +111,7 @@ async function runStep3Checks(config) {
     expected: '원본 learning_notes API의 anon·authenticated 직접 자료 접근 거부',
     observed: '직접 API 요청 미실행; 사용자 제공 권한 화면에서 anon·authenticated 모두 false, service_role CRUD true 확인. 실제 심판 판정 아님',
   });
-  if (config.step >= 6 && config.step !== 8) {
+  if (config.step >= 6 && config.step < 8) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
     const { normal, suspicious } = fixtureRequests();
@@ -135,7 +135,7 @@ async function runStep3Checks(config) {
       }
     }
   }
-  if (config.step === 8) {
+  if (config.step === 8 || config.step === 9) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
     const { normal, suspicious } = fixtureRequests();
@@ -159,6 +159,17 @@ async function runStep3Checks(config) {
     results.push({ attackId: 'resource_zone_fixtures',
       expected: '로컬 단건 읽기·수정 허용, 전체 목록·공지 쓰기·미등록 거부, 복합 추가 확인 및 재확인 허용',
       observed: `로컬 가상 요청 실행 ${observations.join(', ')}; 운영 연결·심판 미확인` });
+  }
+  if (config.step === 9) {
+    const { detect } = await import('./detect.mjs');
+    const { checkDetection } = await import('../scripts/detect-test.mjs');
+    const checks = await checkDetection(detect);
+    results.push({ attackId: 'detection_fixtures',
+      expected: '원본 폭주 및 확장 복합 사건만 각 계약의 회수 제안, 정상 사건 observe',
+      observed: `로컬 가상 사건 ${checks.filter(item => item.passed).length}/${checks.length} 통과; 원본에는 기기·네트워크 없음; 운영 사건 전달·심판 미확인` });
+    results.push({ attackId: 'revocation_and_timing',
+      expected: '심판이 특정 가상 기기 실제 회수·경과 시간·정상 기기 유지를 확인',
+      observed: '미실행; 회수 API·권한 변경 없음; 실제 회수·시간·정상 기기 운영 유지와 S09_NO_PROPOSAL 해소 미확인' });
   }
   return results;
 }

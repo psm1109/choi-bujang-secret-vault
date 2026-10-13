@@ -1,7 +1,7 @@
 // ALEPH SDP 엔진이 확인한 요청만 받는 학생 판정기 시작점입니다.
 // 등록 기기의 자료실 읽기에 7단계 복합 가상 사건 추가 확인을 적용합니다.
 // 요청 본문의 userId, role, 기기 키, 토큰을 별도로 믿거나 저장하지 마세요.
-export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'unusual_access']);
+export const RULE_IDS = Object.freeze(['starter.deny', 'device_registered', 'step_up_required']);
 
 // 출처는 엔진 계약의 signals.source만 확인합니다. 클라이언트 헤더로 보완하지 않습니다.
 // judge_fixture는 가상 사건이며 실제 위치 증거가 아닙니다. unknown은 정상값이 아닙니다.
@@ -61,7 +61,7 @@ export async function decide(request) {
         requestId: request.requestId,
         decision: 'step_up',
         reasonCode: 'step_up_required',
-        ruleIds: ['device_registered', 'unusual_access'],
+        ruleIds: ['device_registered', 'step_up_required'],
       };
     }
     return {

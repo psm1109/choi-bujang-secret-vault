@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decide, RULE_IDS } from '../src/decider.mjs';
 import { fixtureRequests } from '../scripts/fixture-7.mjs';
+import { checkDecider } from '../scripts/decider-test.mjs';
+
+test('official rule name enables both stage 7 checks without skipping them', async () => {
+  const results = await checkDecider({ decide, ruleIds: RULE_IDS });
+  assert.equal(results.length, 4);
+  assert.ok(results.every(result => result.passed));
+});
 
 test('compound fixture requests additional confirmation with a reason and preserves response contract', async () => {
   const { normal, suspicious } = fixtureRequests();
@@ -10,7 +17,7 @@ test('compound fixture requests additional confirmation with a reason and preser
   assert.deepEqual(result, {
     schema: 'aleph.decision.v1', requestId: suspicious.requestId,
     decision: 'step_up', reasonCode: 'step_up_required',
-    ruleIds: ['device_registered', 'unusual_access'],
+    ruleIds: ['device_registered', 'step_up_required'],
   });
   assert.ok(result.ruleIds.every(id => RULE_IDS.includes(id)));
   // 지역을 바꿔도 동일한 복합 조건이면 추가 확인입니다.

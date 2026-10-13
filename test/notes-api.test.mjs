@@ -8,6 +8,9 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
   const originalFetch = globalThis.fetch;
   const originalUrl = process.env.SUPABASE_URL;
   const originalKey = process.env.SUPABASE_SECRET_KEY;
+  const originalWarn = console.warn;
+  const denialLogs = [];
+  console.warn = (...args) => denialLogs.push(args);
   const call = async (method = 'GET', authorization, extra = {}) => {
     const result = { headers: {} };
     const response = {
@@ -85,6 +88,7 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
       const denied = await call('GET', token, { query: { userId: 'forged', role: 'authenticated' }, body: { role: 'judge' } });
       assert.equal(denied.status, 401);
       assert.deepEqual(denied.body, { error: 'UNAUTHORIZED' });
+      assert.ok(['login_required', 'login_invalid'].includes(denied.headers['X-Denial-Reason']));
     }
     assert.equal(calls, 0, 'rejected requests must not query notes');
     const success = await call('GET', authorization);
@@ -126,9 +130,11 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     assert.equal(changed.headers['X-Resource-Id'], `notes:${id}`);
     assert.deepEqual(changed.body, { id, title: 'Changed by A', body: 'Updated synthetic fixture' });
     assert.equal(rows.get(id).owner_id, ownerA);
-    assert.equal((await call('PUT', authorization, { query: { id }, body: {
-      title: 'Transfer attempt', body: '', owner_id: ownerB,
-    } })).status, 403);
+    const transfer = await call('PUT', authorization, { query: { id }, body: {
+      title: 'Transfer attempt', body: '', owner_id: ownerB, role: 'instructor',
+    } });
+    assert.equal(transfer.status, 403);
+    assert.equal(transfer.headers['X-Denial-Reason'], 'owner_change_forbidden');
     const bPost = await call('POST', authorizationB, { query: { owner_id: ownerA }, body: {
       title: 'B fixture', body: '', owner_id: ownerA,
     } });
@@ -137,8 +143,11 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     assert.equal(rows.get(bId).owner_id, ownerB);
     for (const [token, foreignId] of [[authorization, bId], [authorizationB, id]]) {
       for (const method of ['GET', 'PUT', 'DELETE']) {
-        assert.equal((await call(method, token, { query: { id: foreignId, owner_id: ownerA },
-          body: { title: 'Denied', body: '' } })).status, 404);
+        const denied = await call(method, token, { query: { id: foreignId, owner_id: ownerA, role: 'instructor' },
+          headers: { authorization: token, 'x-role': 'instructor' },
+          body: { title: 'Denied', body: '', role: 'instructor' } });
+        assert.equal(denied.status, 404);
+        assert.equal(denied.headers['X-Denial-Reason'], 'not_found_or_not_owner');
       }
     }
     assert.equal(rows.get(id).title, 'Changed by A');
@@ -159,9 +168,10 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     assert.equal((await call('PUT', authorization, { query: { id }, body: { title: 'Gone', body: '' } })).status, 404);
     assert.equal((await call('DELETE', authorization, { query: { id } })).status, 404);
     const shared = await call('GET', authorization, { query: { scope: 'shared' } });
-    assert.equal(shared.status, 200);
+    assert.equal(shared.status, 403);
     assert.equal(shared.headers['X-Resource-Id'], 'instructor-notices');
-    assert.deepEqual(shared.body, [{ id: suppliedId, title: 'Provided', body: '' }]);
+    assert.deepEqual(shared.body, { error: 'FORBIDDEN' });
+    assert.equal(shared.headers['X-Denial-Reason'], 'notice_permission_unverified');
     const anonymousShared = await call('GET', undefined, { query: { scope: 'shared' } });
     assert.equal(anonymousShared.status, 401);
     assert.equal(anonymousShared.headers['X-Resource-Id'], 'instructor-notices');
@@ -170,9 +180,34 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
       body: { resourceId: 'instructor-notices' },
     });
     assert.equal(forgedResource.headers['X-Resource-Id'], 'notes');
-    assert.deepEqual(forgedResource.body, shared.body);
+    assert.deepEqual(forgedResource.body, [{ id: suppliedId, title: 'Provided', body: '' }]);
     const sharedSingle = await call('GET', authorization, { query: { id: suppliedId, scope: 'shared' } });
     assert.equal(sharedSingle.headers['X-Resource-Id'], `notes:${suppliedId}`);
+    assert.equal(sharedSingle.status, 403);
+    assert.deepEqual(sharedSingle.body, { error: 'FORBIDDEN' });
+    // 메뉴・판정기를 거치지 않고 API 핸들러에 직접 보내는 우회 요청입니다.
+    const callsBeforeBypass = calls;
+    for (const token of [authorization, authorizationB]) {
+      for (const method of ['GET', 'PUT', 'DELETE']) {
+        const denied = await call(method, token, {
+          query: { id: sharedId, scope: 'shared', role: 'instructor' },
+          headers: { authorization: token, 'x-role': 'instructor' },
+          body: { title: 'Forged notice change', body: '', role: 'instructor' },
+        });
+        assert.equal(denied.status, 403);
+        assert.deepEqual(denied.body, { error: 'FORBIDDEN' });
+        assert.equal(denied.headers['X-Denial-Reason'], 'notice_permission_unverified');
+      }
+    }
+    assert.equal(calls, callsBeforeBypass, 'unverified notice requests must not query or modify data');
+    const sharedSnapshot = structuredClone(rows.get(sharedId));
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      const denied = await call(method, authorizationB, { query: { id: sharedId },
+        body: { title: 'Forged notice change', body: '', role: 'instructor' } });
+      assert.equal(denied.status, 404);
+      assert.deepEqual(denied.body, { error: 'NOT_FOUND' });
+    }
+    assert.deepEqual(rows.get(sharedId), sharedSnapshot);
     const invalidResource = await call('GET', authorization, { query: { id: 'invalid\r\nheader' } });
     assert.equal(invalidResource.status, 400);
     assert.equal(invalidResource.headers['X-Resource-Id'], 'unknown');
@@ -184,7 +219,15 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     delete process.env.SUPABASE_SECRET_KEY;
     globalThis.fetch = async () => { throw new Error('must not connect'); };
     assert.equal((await call('GET', authorization)).status, 503);
+    assert.ok(denialLogs.length > 0);
+    for (const entry of denialLogs) {
+      assert.equal(entry.length, 2);
+      assert.equal(entry[0], 'notes_denied');
+      assert.ok(['login_required', 'login_invalid', 'owner_change_forbidden', 'not_found_or_not_owner',
+        'notice_permission_unverified'].includes(entry[1]));
+    }
   } finally {
+    console.warn = originalWarn;
     globalThis.fetch = originalFetch;
     if (originalUrl === undefined) delete process.env.SUPABASE_URL;
     else process.env.SUPABASE_URL = originalUrl;

@@ -20,6 +20,12 @@ function resourceIdForRequest(request) {
 }
 
 export default async function handler(request, response) {
+  // 고정된 코드만 기록합니다. 사용자 ID·자료 ID·본문·토큰·DB 오류는 남기지 않습니다.
+  const deny = (status, error, reason) => {
+    console.warn('notes_denied', reason);
+    response.setHeader('X-Denial-Reason', reason);
+    return response.status(status).json({ error });
+  };
   response.setHeader('Cache-Control', 'no-store');
   // 거부 응답도 같은 자원 구분을 표시하며 기존 JSON 응답 형식은 유지합니다.
   response.setHeader('X-Resource-Id', resourceIdForRequest(request));
@@ -32,7 +38,7 @@ export default async function handler(request, response) {
   const authorization = request.headers?.authorization;
   if (typeof authorization !== 'string' || !/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(authorization)
       || authorization.length > 8192) {
-    return response.status(401).json({ error: 'UNAUTHORIZED' });
+    return deny(401, 'UNAUTHORIZED', 'login_required');
   }
   const url = process.env.SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -42,13 +48,18 @@ export default async function handler(request, response) {
   try {
     verifyLogin ??= createLoginVerifier({ config, supabaseSecretKey: secretKey });
     const identity = await verifyLogin(authorization);
-    if (!identity) return response.status(401).json({ error: 'UNAUTHORIZED' });
+    if (!identity) return deny(401, 'UNAUTHORIZED', 'login_invalid');
     const supabase = createClient(url, secretKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
     if (id !== undefined && (typeof id !== 'string' || !UUID.test(id))) {
       return response.status(400).json({ error: 'INVALID_ID' });
     }
+    const scope = request.query?.scope;
+    if (scope !== undefined && scope !== 'shared') return response.status(400).json({ error: 'INVALID_SCOPE' });
+    // 공지의 저장 구분·강사 권한을 확인하기 전에는 다른 구역 자료로 대체하지 않습니다.
+    // 단건 ID와 함께 제출하거나 메뉴·본문 role을 위조해도 동일하게 거부합니다.
+    if (scope === 'shared') return deny(403, 'FORBIDDEN', 'notice_permission_unverified');
     if (request.method === 'POST' || request.method === 'PUT') {
       let payload = request.body;
       if (typeof payload === 'string') {
@@ -71,7 +82,7 @@ export default async function handler(request, response) {
         return response.status(201).json({ id: createdId });
       }
       if (Object.hasOwn(payload, 'owner_id') && payload.owner_id !== identity.userId) {
-        return response.status(403).json({ error: 'FORBIDDEN' });
+        return deny(403, 'FORBIDDEN', 'owner_change_forbidden');
       }
       // 기존 행을 소유자로 제한하고 새 행의 소유자도 검증된 ID로 고정합니다.
       const { data, error } = await supabase.from('learning_notes')
@@ -79,25 +90,23 @@ export default async function handler(request, response) {
         .eq('id', id).eq('owner_id', identity.userId)
         .select('id,title,content').maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
-      if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
+      if (!data) return deny(404, 'NOT_FOUND', 'not_found_or_not_owner');
       return response.status(200).json(noteResponse(data));
     }
     if (request.method === 'DELETE') {
       const { data, error } = await supabase.from('learning_notes').delete()
         .eq('id', id).eq('owner_id', identity.userId).select('id').maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
-      if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
+      if (!data) return deny(404, 'NOT_FOUND', 'not_found_or_not_owner');
       return response.status(200).json({ id: data.id });
     }
     if (id !== undefined) {
       const { data, error } = await supabase.from('learning_notes')
         .select('id,title,content').eq('id', id).eq('owner_id', identity.userId).maybeSingle();
       if (error) return response.status(503).json({ error: 'NOTES_UNAVAILABLE' });
-      if (!data) return response.status(404).json({ error: 'NOT_FOUND' });
+      if (!data) return deny(404, 'NOT_FOUND', 'not_found_or_not_owner');
       return response.status(200).json(noteResponse(data));
     }
-    const scope = request.query?.scope;
-    if (scope !== undefined && scope !== 'shared') return response.status(400).json({ error: 'INVALID_SCOPE' });
     const query = supabase.from('learning_notes').select('id,title,content')
       .eq('owner_id', identity.userId);
     const { data, error } = await query.order('title');

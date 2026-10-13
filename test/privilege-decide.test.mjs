@@ -29,7 +29,7 @@ test('상단 패턴은 원본과 동일하고 외부 기능 없는 단일 파일
 test('가상 경보 분류·정상 오차단 없음·반환 계약·원본 보존', () => {
   const original = JSON.stringify(fixture);
   const blocks = new Set(['pv-01','pv-02','pv-03','pv-04','pv-05','pv-06','pv-07','pv-08','pv-09']);
-  const alerts = new Set(['pv-10','pv-12','pv-14','pv-16']);
+  const alerts = new Set(['pv-10','pv-11','pv-12','pv-13','pv-14','pv-15','pv-16','pv-17']);
   const counts = { block: 0, alert: 0, record: 0 };
   for (const input of fixture.alerts) {
     const output = decide(input);
@@ -42,7 +42,7 @@ test('가상 경보 분류·정상 오차단 없음·반환 계약·원본 보�
     assert.deepEqual(decide(event(input.rule.description)), output);
     counts[output.action]++;
   }
-  assert.deepEqual(counts, { block: 9, alert: 4, record: 13 });
+  assert.deepEqual(counts, { block: 9, alert: 8, record: 9 });
   assert.equal(JSON.stringify(fixture), original);
 });
 
@@ -65,4 +65,19 @@ test('판단 이유는 경보의 비밀값 의심 문구를 복사하지 않음'
   const output = decide(event('다른 계정의 권한으로 관리자 명령을 실행했습니다. token=synthetic-only'));
   assert.equal(output.action, 'block');
   assert.equal(output.reason, patterns[1].name);
+});
+
+test('불확실한 그룹 변경·계정 종류 조회는 알림만 남기고 단순 조회는 기록', () => {
+  for (const description of [
+    '계정이 과제 그룹에 추가됐습니다. 관리자 그룹은 아닙니다.',
+    '자기 계정 종류를 조회한 뒤 변경은 없습니다.',
+    '새 로컬 그룹이 하나 만들어졌습니다.',
+    '그룹 목록을 읽은 뒤 수업 그룹 설명만 바뀌었습니다.',
+  ]) {
+    const output = decide(event(description));
+    assert.equal(output.action, 'alert');
+    assert.ok(output.confidence >= 0.5 && output.confidence < 0.85);
+  }
+  assert.equal(decide(event('그룹 소속을 읽기만 했습니다.')).action, 'record');
+  assert.equal(decide(event('자기 세션 정보를 조회했습니다.')).action, 'record');
 });

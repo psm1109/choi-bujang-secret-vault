@@ -132,7 +132,7 @@ test('실행기로 시험 경보를 두 번 흘리면 명확한 공격만 거부
   const first = await runXdr(options);
   const before = await rulesAt(root);
   const second = await runXdr(options);
-  assert.deepEqual(first.counts, { block: 9, alert: 4, record: 13 });
+  assert.deepEqual(first.counts, { block: 9, alert: 8, record: 9 });
   assert.deepEqual(second, first);
   assert.deepEqual(await rulesAt(root), before);
   assert.equal(before.length, 9);
@@ -142,9 +142,9 @@ test('실행기로 시험 경보를 두 번 흘리면 명확한 공격만 거부
       Number(alertId.slice(3)) <= 9 ? 'deny' : 'allow', alertId);
   }
   const lines = (await readFile(join(root, 'xdr', 'alerts.log'), 'utf8')).trim().split('\n').map(JSON.parse);
-  assert.equal(lines.length, 26);
-  assert.equal(lines.filter(line => line.action === 'alert' && line.outcome === 'notification').length, 8);
-  for (const alertId of ['pv-10', 'pv-12', 'pv-14', 'pv-16']) {
+  assert.equal(lines.length, 34);
+  assert.equal(lines.filter(line => line.action === 'alert' && line.outcome === 'notification').length, 16);
+  for (const alertId of ['pv-10', 'pv-11', 'pv-12', 'pv-13', 'pv-14', 'pv-15', 'pv-16', 'pv-17']) {
     assert.equal(before.some(rule => rule.alertId === alertId), false);
     assert.equal(lines.filter(line => line.alertId === alertId && line.outcome === 'notification').length, 2);
   }

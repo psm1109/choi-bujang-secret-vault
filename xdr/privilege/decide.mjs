@@ -42,6 +42,11 @@ export function decide(alert) {
     scores[0] = 0.6;
     if (!incomplete && (remote || multipleAccounts || executed || rapidRejoin)) scores[0] = 0.95;
   }
+  // 관리자 그룹이 아니거나 권한 변경이 확인되지 않아도 관련 변화는 알림으로 확인합니다.
+  const otherGroupChange = /(?:과제|수업|로컬) 그룹/u.test(description)
+    && /추가|만들|설명.*(?:바뀌|변경)/u.test(description);
+  if (otherGroupChange) scores[0] = Math.max(scores[0], 0.5);
+  if (/계정 종류.*조회/u.test(description)) scores[1] = 0.5;
   if (command || /권한 상승|관리자 권한으로 바뀌/u.test(description)) {
     scores[1] = 0.55;
     if (executed && (unfamiliar || justElevated || otherAccount)) scores[1] = 0.95;

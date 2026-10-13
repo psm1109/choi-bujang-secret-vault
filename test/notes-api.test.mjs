@@ -90,6 +90,7 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     const success = await call('GET', authorization);
     assert.equal(success.status, 200);
     assert.equal(success.headers['Cache-Control'], 'no-store');
+    assert.equal(success.headers['X-Resource-Id'], 'notes');
     assert.deepEqual(success.body, notes);
     assert.equal((await call('POST')).status, 401);
     assert.equal((await call('PATCH')).status, 405);
@@ -111,6 +112,7 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     assert.match(id, /^[0-9a-f-]{36}$/);
     assert.equal(rows.get(id).owner_id, ownerA);
     const single = await call('GET', authorization, { query: { id } });
+    assert.equal(single.headers['X-Resource-Id'], `notes:${id}`);
     assert.deepEqual(single.body, { id, title: 'Synthetic title', body: 'Synthetic fixture' });
     assert.deepEqual((await call('GET', authorization)).body, [single.body]);
     assert.equal((await call('POST', authorization, { body: { id, title: 'Duplicate', body: '' } })).status, 409);
@@ -121,6 +123,7 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
       title: 'Changed by A', body: 'Updated synthetic fixture',
     } });
     assert.equal(changed.status, 200);
+    assert.equal(changed.headers['X-Resource-Id'], `notes:${id}`);
     assert.deepEqual(changed.body, { id, title: 'Changed by A', body: 'Updated synthetic fixture' });
     assert.equal(rows.get(id).owner_id, ownerA);
     assert.equal((await call('PUT', authorization, { query: { id }, body: {
@@ -157,8 +160,23 @@ test('A and B can manage only their own notes and cannot transfer ownership', as
     assert.equal((await call('DELETE', authorization, { query: { id } })).status, 404);
     const shared = await call('GET', authorization, { query: { scope: 'shared' } });
     assert.equal(shared.status, 200);
+    assert.equal(shared.headers['X-Resource-Id'], 'instructor-notices');
     assert.deepEqual(shared.body, [{ id: suppliedId, title: 'Provided', body: '' }]);
-    assert.equal((await call('GET', undefined, { query: { scope: 'shared' } })).status, 401);
+    const anonymousShared = await call('GET', undefined, { query: { scope: 'shared' } });
+    assert.equal(anonymousShared.status, 401);
+    assert.equal(anonymousShared.headers['X-Resource-Id'], 'instructor-notices');
+    const forgedResource = await call('GET', authorization, {
+      headers: { authorization, 'x-resource-id': 'instructor-notices' },
+      body: { resourceId: 'instructor-notices' },
+    });
+    assert.equal(forgedResource.headers['X-Resource-Id'], 'notes');
+    assert.deepEqual(forgedResource.body, shared.body);
+    const sharedSingle = await call('GET', authorization, { query: { id: suppliedId, scope: 'shared' } });
+    assert.equal(sharedSingle.headers['X-Resource-Id'], `notes:${suppliedId}`);
+    const invalidResource = await call('GET', authorization, { query: { id: 'invalid\r\nheader' } });
+    assert.equal(invalidResource.status, 400);
+    assert.equal(invalidResource.headers['X-Resource-Id'], 'unknown');
+    assert.equal((await call('GET', authorization, { query: { scope: ['shared', 'other'] } })).status, 400);
     dbFailure = true;
     const failure = await call('GET', authorization);
     assert.equal(failure.status, 503);

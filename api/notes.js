@@ -8,8 +8,21 @@ let verifyLogin;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const noteResponse = ({ id, title, content }) => ({ id, title, body: content });
 
+// 서버 라우터의 경로 인자와 조회 구분만 사용합니다. 요청 헤더·본문의 자원 ID는 믿지 않습니다.
+function resourceIdForRequest(request) {
+  const { id, scope } = request.query ?? {};
+  if (id !== undefined) {
+    return typeof id === 'string' && UUID.test(id) ? `notes:${id.toLowerCase()}` : 'unknown';
+  }
+  if (request.method === 'GET' && scope === 'shared') return 'instructor-notices';
+  if (request.method === 'GET' && scope !== undefined) return 'unknown';
+  return 'notes';
+}
+
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'no-store');
+  // 거부 응답도 같은 자원 구분을 표시하며 기존 JSON 응답 형식은 유지합니다.
+  response.setHeader('X-Resource-Id', resourceIdForRequest(request));
   const id = request.query?.id;
   const methods = id === undefined ? ['GET', 'POST'] : ['GET', 'PUT', 'DELETE'];
   if (!methods.includes(request.method)) {

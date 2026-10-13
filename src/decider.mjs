@@ -11,6 +11,9 @@ const EMPTY_QUERY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495
 function zoneRule(request) {
   if (typeof request.path !== 'string' || request.service !== 'notes' || request.queryLength !== 0
       || request.querySha256 !== EMPTY_QUERY_SHA256) return null;
+  // 7단계부터 사용한 공개 가상 요청 경로를 정확히 보존합니다. 기능 경로로 확장하지 않습니다.
+  if (request.method === 'GET' && request.route === 'GET /notes/:id'
+      && request.path === '/notes/demo') return 'notes_read';
   for (const prefix of ['', '/api']) {
     if (request.method === 'GET' && request.route === `GET ${prefix}/notes`
         && request.path === `${prefix}/notes`) return 'notes_read';

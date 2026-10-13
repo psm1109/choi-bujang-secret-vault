@@ -6,6 +6,20 @@ import { fixtureRequests } from '../scripts/fixture-7.mjs';
 const id = '00000000-0000-4000-8000-000000000001';
 const request = overrides => ({ ...fixtureRequests().normal, ...overrides });
 
+test('previous normal demo read survives UUID tightening without allowing functional paths', async () => {
+  const input = request({ path: '/notes/demo', route: 'GET /notes/:id' });
+  assert.equal((await decide(input)).decision, 'allow');
+  assert.equal((await decide({ ...input, deviceRegistered: false })).decision, 'deny');
+  const { suspicious } = fixtureRequests();
+  assert.equal((await decide({ ...suspicious, path: input.path, route: input.route })).decision, 'step_up');
+  for (const changes of [{ method: 'PUT', route: 'PUT /notes/:id' },
+    { path: '/notes/export' }, { path: '/notes/demo/export' }, { path: '/notes/demo/' },
+    { path: '/notes/%64emo' }, { queryLength: 12 },
+    { path: '/api/notes/demo', route: 'GET /api/notes/:id' }]) {
+    assert.equal((await decide({ ...input, ...changes })).decision, 'deny');
+  }
+});
+
 test('exact note UUID routes allow read and update, with existing device and step-up checks', async () => {
   for (const prefix of ['', '/api']) {
     for (const method of ['GET', 'PUT']) {

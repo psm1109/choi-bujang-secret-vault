@@ -11,15 +11,18 @@
 이 저장소에 포함되어 있지 않아 실제 엔진 동작은 확인하지 못했습니다.
 
 계약은 `stepUp` 값만 보고 재인증 확인 요청을 생략하지 말라고 정합니다.
-따라서 판정기의 복합 가상 사건은 계속 `step_up`을 반환하며,
-`verified: true`와 나이 60초만으로 허용하지 않습니다.
+판정기는 먼저 복합 가상 사건을 확인해 `step_up`을 반환합니다.
+가상 연습에서는 `judge_fixture` 복합 사건에 대해 `verified: true`이고
+로그인 나이가 0~900초의 정수이며 일치한 각 사건의 나이보다 크지 않은
+새 요청을 `allow`로 재판정합니다. 이는 가상 입력의 비교이며 실제 엔진이
+같은 주체의 새 로그인 시각을 확인했다는 증거가 아닙니다.
 가상 사건 신호는 실제 위치 증거가 아니며 클라이언트 헤더는 사용하지 않습니다.
 
 ## 이번에 실행한 가상 시험
 
 - `npm.cmd run fixture:7`: 정상 사건 `allow`, 복합 이상 사건 `step_up` 확인.
-- `node --test --test-isolation=none test/decider-input.test.mjs test/decider-unusual-access.test.mjs`: 6개 통과.
-- `npm.cmd run decider:test`: 등록 기기 정상 요청 허용, 미등록 기기 가상 요청 거부 확인.
+- `node --test --test-isolation=none test/decider-input.test.mjs test/decider-unusual-access.test.mjs`: 8개 통과.
+- `npm.cmd run decider:test`: 등록 기기 정상 요청 허용, 미등록 기기 가상 요청 거부, 복합 이상 접속 추가 확인, 재확인된 가상 요청 허용 확인.
 
 복합 조건은 `judge_fixture` 출처, 0~5시, `unusual` 네트워크,
 최근 60초 안의 `risk_signal` 사건 20건 이상입니다.

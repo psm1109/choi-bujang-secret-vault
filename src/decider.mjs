@@ -43,13 +43,19 @@ export async function decide(request) {
       || (request.route === 'GET /api/notes/:id' && /^\/api\/notes\/[^/?#]+$/u.test(request.path)));
   if (readingNotes) {
     // 제공된 가상 사건 형식의 risk_signal을 사용하며 지역은 판단하지 않습니다.
+    const riskEvents = request.recentEvents.filter(event => event.kind === 'risk_signal'
+      && event.ageSeconds <= 60 && event.count >= 20);
     const unusualAccess = request.signals.source === 'judge_fixture'
       && Number.isInteger(request.signals.hour) && request.signals.hour < 6
       && request.signals.network === 'unusual'
-      && request.recentEvents.some(event => event.kind === 'risk_signal'
-        && event.ageSeconds <= 60 && event.count >= 20);
-    if (unusualAccess) {
-      // 새 로그인 시각 확인은 제공 엔진의 역할입니다. stepUp 값만으로 생략하지 않습니다.
+      && riskEvents.length > 0;
+    // 복합 가상 사건을 먼저 확인하고, 사건보다 오래되지 않은 검증된 가상 로그인만 허용합니다.
+    // 실제 새 로그인 시각 검증·자료 차단 실측을 대신하는 조건은 아닙니다.
+    const fixtureReconfirmed = unusualAccess && request.stepUp?.verified === true
+      && Number.isInteger(request.stepUp.authAgeSeconds)
+      && request.stepUp.authAgeSeconds >= 0 && request.stepUp.authAgeSeconds <= 900
+      && riskEvents.every(event => request.stepUp.authAgeSeconds <= event.ageSeconds);
+    if (unusualAccess && !fixtureReconfirmed) {
       return {
         schema: 'aleph.decision.v1',
         requestId: request.requestId,

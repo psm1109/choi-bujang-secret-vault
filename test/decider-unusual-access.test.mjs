@@ -61,13 +61,29 @@ test('each incomplete combination and region alone remain allowed', async () => 
   }
 });
 
-test('device and input checks precede additional confirmation and stepUp alone does not bypass it', async () => {
+test('device and input checks precede additional confirmation', async () => {
   const { suspicious } = fixtureRequests();
   const unregistered = await decide({ ...suspicious, deviceRegistered: false });
   assert.equal(unregistered.decision, 'deny');
   assert.equal(unregistered.reasonCode, 'device_not_registered');
   assert.equal((await decide({ ...suspicious, recentEvents: undefined })).decision, 'deny');
   assert.equal((await decide({ ...suspicious, method: 'POST' })).decision, 'deny');
-  assert.equal((await decide({ ...suspicious,
-    stepUp: { verified: true, authAgeSeconds: 60 } })).decision, 'step_up');
+});
+
+test('fixture reauthentication permits only verified logins no older than the risk event', async () => {
+  const { suspicious } = fixtureRequests();
+  for (const authAgeSeconds of [0, 60]) {
+    const result = await decide({ ...suspicious,
+      stepUp: { verified: true, authAgeSeconds } });
+    assert.equal(result.decision, 'allow');
+    assert.equal(result.reasonCode, 'approved');
+  }
+  for (const stepUp of [undefined, { verified: false, authAgeSeconds: null },
+    { verified: 'true', authAgeSeconds: 0 }, { verified: true, authAgeSeconds: null },
+    { verified: true, authAgeSeconds: -1 }, { verified: true, authAgeSeconds: '0' },
+    { verified: true, authAgeSeconds: 61 }, { verified: true, authAgeSeconds: 901 }]) {
+    assert.equal((await decide({ ...suspicious, stepUp })).decision, 'step_up');
+  }
+  const refreshed = { ...suspicious, stepUp: { verified: true, authAgeSeconds: 0 } };
+  assert.equal((await decide({ ...refreshed, deviceRegistered: false })).decision, 'deny');
 });

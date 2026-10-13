@@ -15,8 +15,6 @@ function zoneRule(request) {
   if (request.method === 'GET' && request.route === 'GET /notes/:id'
       && request.path === '/notes/demo') return 'notes_read';
   for (const prefix of ['', '/api']) {
-    if (request.method === 'GET' && request.route === `GET ${prefix}/notes`
-        && request.path === `${prefix}/notes`) return 'notes_read';
     if (new RegExp(`^${prefix}/notes/${UUID_PATH}$`, 'u').test(request.path)) {
       if (request.method === 'GET' && request.route === `GET ${prefix}/notes/:id`) return 'notes_read';
       if (request.method === 'PUT' && request.route === `PUT ${prefix}/notes/:id`) return 'notes_update';

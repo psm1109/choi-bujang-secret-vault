@@ -52,7 +52,22 @@ test('unknown paths, route-method mismatches and query function switches are den
   for (const method of ['POST', 'DELETE', 'PATCH']) {
     assert.equal((await decide(request({ method, route: `${method} /notes/:id` }))).decision, 'deny');
   }
-  assert.equal((await decide(request({ path: '/api/notes', route: 'GET /api/notes' }))).decision, 'allow');
+});
+
+test('whole-note collections and all notice or instructor-material writes are denied', async () => {
+  for (const prefix of ['', '/api']) {
+    const collection = request({ path: `${prefix}/notes`, route: `GET ${prefix}/notes` });
+    assert.equal((await decide(collection)).decision, 'deny');
+    assert.equal((await decide({ ...collection, queryLength: 12 })).decision, 'deny');
+    for (const zone of ['instructor-notices', 'notices', 'announcements', 'instructor-materials']) {
+      for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+        for (const [path, route] of [[`${prefix}/${zone}`, `${method} ${prefix}/${zone}`],
+          [`${prefix}/${zone}/${id}`, `${method} ${prefix}/${zone}/:id`]]) {
+          assert.equal((await decide(request({ method, path, route }))).decision, 'deny', `${method} ${path}`);
+        }
+      }
+    }
+  }
 });
 
 test('instructor notice updates stay denied without an engine-verified instructor grant', async () => {

@@ -7,7 +7,7 @@ const outcomes = { decision: ['allow', 'deny', 'step_up'], detection: ['observe'
 export function createOperationsPanel({ root, fetchReport = fetch, online = () => navigator.onLine !== false }) {
   const message = root.querySelector('[data-message]');
   const content = root.querySelector('[data-content]');
-  const button = root.querySelector('button');
+  const button = root.querySelector('#refresh-operations');
   let session = null;
   let revision = 0;
   const clear = text => { revision++; content.replaceChildren(); message.textContent = text; button.disabled = !session?.access_token; };

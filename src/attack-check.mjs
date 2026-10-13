@@ -1,7 +1,8 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if ([3, 4, 5, 6, 7, 8, 9, 10, 11].includes(config.step)) return runStep3Checks(config);
+  if (config.step === 11) return runOperationsChecks(config);
+  if ([3, 4, 5, 6, 7, 8, 9, 10].includes(config.step)) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -29,6 +30,62 @@ export async function runAttackChecks(config) {
   }
   return [{ attackId: 'anonymous_note_read', expected: '비로그인 화면에서 가상 메모를 확인',
     observed: visible ? '비로그인 요청에서 공개 가상 메모 확인 표시가 보임' : `비로그인 요청에서 확인 표시가 보이지 않음 (HTTP ${response.status})` }];
+}
+
+// BYTE BACK 표본의 제출 실행 기록 메타데이터를 사용합니다.
+// https://github.com/ChoiTimo/byteback-sample-pass/blob/main/src/attack-check.mjs
+async function runOperationsChecks(config) {
+  const app = new URL(config.publicAppUrl);
+  if (app.protocol !== 'https:' || app.username || app.password || app.search || app.hash
+      || app.pathname !== '/' || !app.hostname.endsWith('.vercel.app')) throw new Error('실제 배포 주소를 확인해 주세요.');
+  const results = [];
+  for (const [attackId, path, expected, accepts] of [
+    ['deployment_config', '/aleph.json', '배포 설정의 단계·원본 API·허용 경로 일치', async response => {
+      const data = await response.json();
+      return response.ok && data.step === config.step && data.originalApiUrl === config.originalApiUrl
+        && JSON.stringify(data.allowedRoutes) === JSON.stringify(config.allowedRoutes);
+    }],
+    ['security_header', '/', '첫 화면 X-Content-Type-Options: nosniff', async response => {
+      await response.body?.cancel();
+      return response.ok && response.headers.get('x-content-type-options') === 'nosniff';
+    }],
+    ['browser_public_key', '/', '첫 화면 코드에 Supabase 공개 키·anon JWT·SDK 없음', async response => {
+      const html = await response.text();
+      return response.ok && !/sb_publishable_|eyJ[A-Za-z0-9_-]{12,}\.eyJ[A-Za-z0-9_-]{12,}\.|@supabase\/supabase-js/u.test(html);
+    }],
+  ]) {
+    let response;
+    try {
+      response = await fetch(new URL(path, app), { method: 'GET', redirect: 'error', cache: 'no-store',
+        signal: AbortSignal.timeout(5000), alephEvidence: { caseId: attackId, requestKey: 'read' } });
+      const matches = await accepts(response);
+      results.push({ attackId, stage: 5, expected, observed: `HTTP ${response.status}`,
+        result: matches ? 'blocked' : 'breached' });
+    } catch {
+      // 상태 응답까지 확인했으나 형식 검사에 실패한 경우와 응답 부재를 구분합니다.
+      results.push({ attackId, stage: 5, expected, observed: response ? `HTTP ${response.status}` : 'not_run',
+        result: response ? 'breached' : 'not_run' });
+    }
+  }
+  for (const [attackId, stage, expected] of [
+    ['static_note_read', 2, '비로그인 GET /data.json: HTTP 404'],
+    ['anonymous_note_list', 3, '비로그인 GET /api/notes: HTTP 401'],
+    ['anonymous_shared_read', 3, '비로그인 shared GET: HTTP 401'],
+    ['anonymous_note_read', 3, '비로그인 단건 GET: HTTP 401'],
+    ['anonymous_note_create', 3, '비로그인 POST: HTTP 401'],
+    ['anonymous_note_update', 4, '비로그인 PUT: HTTP 401'],
+    ['anonymous_note_delete', 4, '비로그인 DELETE: HTTP 401'],
+    ['resource_zone_fixtures', 8, '구역 규칙의 운영 판정 확인'],
+    ['detection_fixtures', 9, '운영 사건 전달과 폭주 탐지 확인'],
+    ['revocation_and_timing', 9, '특정 기기 실제 회수·시간·정상 기기 유지 확인'],
+    ['restore_backup_verification', 10, '검증된 사본 복원·버전·자료 보존 확인'],
+    ['authenticated_and_database_checks', 5, '실제 계정 CRUD·소유자 검사·원본 API 직접 접근 거부'],
+    ['app_manifest', 11, '배포 manifest의 앱 이름·시작 주소·아이콘 확인'],
+    ['device_status_endpoint', 11, '서버 기기 상태 확인'],
+    ['device_request_endpoint', 11, '승인 요청만으로 권한 부여 금지'],
+    ['device_approval_live_flow', 11, '실제 등록 확인 뒤 정상 화면·승인 전 자료 차단'],
+  ]) results.push({ attackId, stage, expected, observed: 'not_run', result: 'not_run' });
+  return results;
 }
 
 
@@ -72,37 +129,11 @@ async function runStep3Checks(config) {
             observed: `실제 GET / HTTP ${response.status}; ${response.ok && !/sb_publishable_|eyJ[A-Za-z0-9_-]{12,}\.eyJ[A-Za-z0-9_-]{12,}\.|@supabase\/supabase-js/u.test(html) ? '검사 패턴 없음' : '조건 미충족'}; 응답 본문 미기록` });
         }
       } catch {
-        if (config.step === 11) {
-          for (const attackId of path === '/aleph.json' ? ['deployment_config'] : ['security_header', 'browser_public_key']) {
-            results.push({ attackId, expected: path === '/aleph.json'
-              ? '배포 설정의 원본 API 주소·허용 경로 확인' : '첫 화면 보안 헤더·공개 키 부재 확인', observed: 'not_run' });
-          }
-          continue;
-        }
         results.push({ attackId: path === '/aleph.json' ? 'deployment_config' : 'first_page_checks',
           expected: path === '/aleph.json' ? '배포 설정의 원본 API 주소·허용 경로 확인' : '첫 화면 보안 헤더·공개 키 부재 확인',
           observed: '요청 시도했으나 응답 확인 실패; 미확인' });
       }
     }
-  }
-  if (config.step === 11) {
-    // 12단계 실행 기록 대조에서 확인된 세 HTTP 점검만 위에서 수행합니다.
-    // 나머지는 운영 기록 연결 전까지 실행하지 않으며 로컬 연습도 섞지 않습니다.
-    for (const [attackId, method, path, status] of checks) {
-      results.push({ attackId, expected: `비로그인 ${method} ${path}: HTTP ${status}`, observed: 'not_run' });
-    }
-    for (const [attackId, expected] of [
-      ['resource_zone_fixtures', '단건 허용·전체 목록 및 공지 쓰기 거부의 실제 운영 결과'],
-      ['detection_fixtures', '운영 사건 전달과 폭주 탐지의 실제 결과'],
-      ['revocation_and_timing', '특정 기기 회수·경과 시간·정상 기기 유지의 실제 결과'],
-      ['restore_backup_verification', '검증된 사본 복원·버전·자료 일치와 보존의 실제 결과'],
-      ['authenticated_and_database_checks', '등록 확인 뒤 A/B 본인 CRUD·상대 접근 거부·원본 API 직접 접근 거부'],
-      ['app_manifest', '배포 manifest에 앱 이름·시작 주소·192/512 아이콘 설정'],
-      ['device_status_endpoint', '운영 승인 미연결 경로는 503·unavailable·registered:false'],
-      ['device_request_endpoint', '승인 요청만으로 권한을 부여하지 않음'],
-      ['device_approval_live_flow', '실제 등록 확인 뒤 정상 화면과 승인 전 자료 차단'],
-    ]) results.push({ attackId, expected, observed: 'not_run' });
-    return results;
   }
   for (const [attackId, method, path, expectedStatus] of checks) {
     // 제출 격리는 읽기 요청만 허용합니다. 쓰기 시험을 보낸 척하지 않습니다.

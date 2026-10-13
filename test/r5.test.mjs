@@ -159,7 +159,7 @@ test('stage 11 bundle reports only supported HTTP evidence and marks every other
   try {
     globalThis.fetch = async (input, init) => {
       const url = new URL(input);
-      calls.push([url.pathname, init.method ?? 'GET']);
+      calls.push([url.pathname, init.method ?? 'GET', init.alephEvidence]);
       assert.equal(new Headers(init.headers).has('authorization'), false);
       if (url.pathname === '/aleph.json') return new Response(JSON.stringify({ ...config11, step: 10 }));
       if (url.pathname === '/') return new Response('<html></html>', { headers: { 'x-content-type-options': 'nosniff' } });
@@ -173,15 +173,22 @@ test('stage 11 bundle reports only supported HTTP evidence and marks every other
       return new Response('private_fixture_not_recorded', { status: url.pathname === '/data.json' ? 404 : 401 });
     };
     const results = await runAttackChecks(config11);
-    assert.deepEqual(calls, [['/aleph.json', 'GET'], ['/', 'GET']]);
+    assert.deepEqual(calls, [
+      ['/aleph.json', 'GET', { caseId: 'deployment_config', requestKey: 'read' }],
+      ['/', 'GET', { caseId: 'security_header', requestKey: 'read' }],
+      ['/', 'GET', { caseId: 'browser_public_key', requestKey: 'read' }],
+    ]);
     assert.equal(results.length, 19);
     assert.equal(new Set(results.map(item => item.attackId)).size, 19);
-    assert.match(results.find(item => item.attackId === 'deployment_config').observed, /설정 불일치/u);
     const executed = results.filter(item => item.observed !== 'not_run');
     assert.deepEqual(executed.map(item => item.attackId), ['deployment_config', 'security_header', 'browser_public_key']);
-    assert.ok(executed.every(item => item.observed.includes('HTTP 200')));
+    assert.ok(executed.every(item => item.observed === 'HTTP 200'));
+    assert.deepEqual(executed.map(item => item.result), ['breached', 'blocked', 'blocked']);
     assert.equal(results.filter(item => item.observed === 'not_run').length, 16);
-    for (const item of results) assert.ok(item.expected.length <= 300 && item.observed.length <= 300);
+    for (const item of results) {
+      assert.deepEqual(Object.keys(item).sort(), ['attackId', 'expected', 'observed', 'result', 'stage']);
+      assert.ok(item.expected.length <= 300 && item.observed.length <= 300);
+    }
     assert.equal(JSON.stringify(results).includes('private_fixture_not_recorded'), false);
   } finally { globalThis.fetch = originalFetch; }
 });

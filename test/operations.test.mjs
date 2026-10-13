@@ -85,7 +85,8 @@ function panel(fetchReport) {
     append(...values) { this.children.push(...values); },
     replaceChildren(...values) { this.children = [...values]; }, addEventListener() {} });
   const message = node(), content = node(), button = node();
-  const root = { querySelector: name => ({ '[data-message]': message, '[data-content]': content, button }[name]),
+  const root = { querySelector: name => ({ '[data-message]': message, '[data-content]': content,
+    '#refresh-operations': button }[name]),
     ownerDocument: { createElement: node, createDocumentFragment: node } };
   return { controller: createOperationsPanel({ root, fetchReport, online: () => true }), message, content, button };
 }

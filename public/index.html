@@ -37,8 +37,15 @@
     <p>아래 기록은 모두 실습을 위해 만든 가상 자료입니다.</p>
     <section id="operations" class="auth" aria-labelledby="operations-heading">
       <h2 id="operations-heading">탈환 작전실</h2>
+      <section id="check-records" aria-label="가린 제출 자기 점검 기록">
+        <h3>제출 자기 점검 기록</h3>
+        <p>같은 서버 기록의 수치와 가린 행을 대조합니다. 운영 판정·회수·복구 결과와 구분합니다.</p>
+        <button type="button">서버 점검 기록 새로고침</button>
+        <p data-check-message role="status">기록 확인 전입니다.</p>
+        <div data-check-content aria-live="polite"></div>
+      </section>
       <p>판정 규칙·탐지 사건·회수 상태·복구 버전을 확인합니다. 수치는 이번 응답의 가린 서버 기록과 대조하며, 기록이 없는 결과는 미실행입니다.</p>
-      <button type="button" disabled>작전실 새로고침</button>
+      <button id="refresh-operations" type="button" disabled>작전실 새로고침</button>
       <p data-message role="status">로그인 후 서버 기록을 확인할 수 있습니다.</p>
       <div data-content aria-live="polite"></div>
       <p>화면의 성공 문구는 통과 근거가 아닙니다. 마지막 총공세 클리어는 12단계 통과와 41종 공격 방어로 판정하며 차별화는 가산 과제입니다.</p>
@@ -80,6 +87,7 @@
     <h2 id="my-notes-heading" hidden>내 메모</h2>
     <ul id="notes" aria-live="polite" hidden></ul>
   </main>
+  <script type="module" src="/check-records.js"></script>
   <script type="module">
     const { createDeviceAccess } = await import('/device-access.js');
     const { createOperationsPanel } = await import('/operations.js');

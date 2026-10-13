@@ -76,12 +76,18 @@ try {
     fail('직접 실행한 공격 점검 결과 1~20개가 필요합니다.');
   }
   for (const attempt of attackAttempts) {
+    const keys = Object.keys(attempt ?? {}).sort().join(',');
     if (!attempt || typeof attempt !== 'object' || Array.isArray(attempt)
-        || Object.keys(attempt).sort().join(',') !== 'attackId,expected,observed'
+        || !['attackId,expected,observed', 'attackId,expected,observed,result,stage'].includes(keys)
         || typeof attempt.attackId !== 'string' || !/^[a-z0-9][a-z0-9_.-]{0,79}$/iu.test(attempt.attackId)
         || typeof attempt.expected !== 'string' || !attempt.expected.trim() || attempt.expected.length > 300
         || typeof attempt.observed !== 'string' || !attempt.observed.trim() || attempt.observed.length > 300) {
       fail('공격 점검 결과에는 attackId·expected·observed만 넣어 주세요.');
+    }
+    if (keys.includes('result') && (!Number.isInteger(attempt.stage) || attempt.stage < 1 || attempt.stage > 11
+        || !['blocked', 'breached', 'not_run'].includes(attempt.result)
+        || (attempt.result === 'not_run') !== (attempt.observed === 'not_run'))) {
+      fail('점검 단계·결과·미실행 표기를 확인해 주세요.');
     }
   }
   if (new Set(attackAttempts.map(item => item.attackId)).size !== attackAttempts.length) {
@@ -89,6 +95,7 @@ try {
   }
   const bundle = {
     schema: 'aleph.defense.submission.v2', step: config.step, commit, repoUrl,
+    checkedAt: new Date().toISOString(),
     changedFiles, policyRules,
     attackAttempts, explanation: notes.explanation.trim(), blockedAt: notes.blockedAt ?? null,
     identityProvider: config.identityProvider ?? null, allowedRoutes: config.allowedRoutes ?? [],

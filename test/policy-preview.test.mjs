@@ -4,12 +4,15 @@ import { generateKeyPairSync, sign, createHash } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { previewPolicy, changedRange, POLICY_FILES } from '../src/policy-preview.mjs';
+import { previewPolicy, restoreTrialPolicy, changedRange, POLICY_FILES } from '../src/policy-preview.mjs';
+import { pathToFileURL } from 'node:url';
+import { fixtureRequests } from '../scripts/fixture-7.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'policy-preview-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'src'));
+  await writeFile(join(root, '.aleph-policy-trial.json'), JSON.stringify({ schema: 'aleph.policy-trial.v1', environment: 'local-test' }));
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const backup = {
     schema: 'aleph.policy-backup.v1', version: 'safe-v9',
@@ -76,4 +79,41 @@ test('삽입·삭제 및 줄바꿈 변경 범위를 보존한다', () => {
   assert.deepEqual(changedRange('a\nx\nb', 'a\nb'), { current: { start: 2, lines: 1 }, backup: { start: 2, lines: 0 } });
   assert.notEqual(changedRange('a\n', 'a\r\n'), null);
 });
+
+test('확인한 두 정책만 복원하고 다른 서비스·감사 파일을 보존한다', async t => {
+  const { options, backup, save } = await fixture(t);
+  for (const path of POLICY_FILES) {
+    const content = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+    backup.files[path] = { content, sha256: createHash('sha256').update(content).digest('hex') };
+  }
+  await save();
+  await writeFile(join(options.trialRoot, 'other-service.mjs'), 'unchanged-service');
+  await writeFile(join(options.trialRoot, 'audit.log'), 'unchanged-audit');
+  const report = await previewPolicy(options);
+  const result = await restoreTrialPolicy(options, report.confirmation);
+  assert.equal(result.version, report.version);
+  assert.deepEqual(result.restoredFiles, POLICY_FILES);
+  assert.equal(await readFile(join(options.trialRoot, 'other-service.mjs'), 'utf8'), 'unchanged-service');
+  assert.equal(await readFile(join(options.trialRoot, 'audit.log'), 'utf8'), 'unchanged-audit');
+  const { decide } = await import(pathToFileURL(join(options.trialRoot, 'src/decider.mjs')));
+  const normal = { ...fixtureRequests().normal, path: '/api/notes/00000000-0000-4000-8000-000000000001', route: 'GET /api/notes/:id' };
+  assert.equal((await decide(normal)).decision, 'allow');
+  assert.equal((await decide({ ...normal, deviceRegistered: false })).decision, 'deny');
+  assert.deepEqual((await previewPolicy(options)).changes, []);
+});
+
+for (const scenario of ['no-confirmation', 'changed-trial', 'changed-version', 'no-marker']) {
+  test(`복원 중단 후 원본 유지: ${scenario}`, async t => {
+    const { options, backup, save } = await fixture(t);
+    const report = await previewPolicy(options);
+    let confirmation = report.confirmation;
+    if (scenario === 'no-confirmation') confirmation = undefined;
+    if (scenario === 'changed-trial') await writeFile(join(options.trialRoot, POLICY_FILES[0]), 'changed-after-preview');
+    if (scenario === 'changed-version') { backup.version = 'different-v9'; await save(); }
+    if (scenario === 'no-marker') await rm(join(options.trialRoot, '.aleph-policy-trial.json'));
+    const before = await Promise.all(POLICY_FILES.map(path => readFile(join(options.trialRoot, path))));
+    await assert.rejects(restoreTrialPolicy(options, confirmation));
+    assert.deepEqual(await Promise.all(POLICY_FILES.map(path => readFile(join(options.trialRoot, path)))), before);
+  });
+}
 

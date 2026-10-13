@@ -79,13 +79,15 @@ async function runStep3Checks(config) {
     }
   }
   for (const [attackId, method, path, expectedStatus] of checks) {
+    // 제출 격리는 읽기 요청만 허용합니다. 쓰기 시험을 보낸 척하지 않습니다.
+    if (!['GET', 'HEAD'].includes(method)) {
+      results.push({ attackId, expected: `비로그인 ${method} ${path}: HTTP ${expectedStatus}`, observed: 'not_run' });
+      continue;
+    }
     let observed;
     try {
       const response = await fetch(new URL(path, app), {
         method, redirect: 'error', signal: AbortSignal.timeout(5000),
-        ...(['POST', 'PUT'].includes(method) ? {
-          headers: { 'Content-Type': 'application/json' }, body: '{}',
-        } : {}),
       });
       observed = `실제 비로그인 요청 HTTP ${response.status}; ${response.status === expectedStatus ? '기대 상태 일치' : '기대 상태 불일치'}; 응답 본문 미기록`;
       await response.body?.cancel();
@@ -161,32 +163,19 @@ async function runStep3Checks(config) {
       observed: `로컬 가상 요청 실행 ${observations.join(', ')}; 운영 연결·심판 미확인` });
   }
   if ([9, 10, 11].includes(config.step)) {
-    const { detect } = await import('./detect.mjs');
-    const { checkDetection } = await import('../scripts/detect-test.mjs');
-    const checks = await checkDetection(detect);
     results.push({ attackId: 'detection_fixtures',
       expected: '원본 폭주 및 확장 복합 사건만 각 계약의 회수 제안, 정상 사건 observe',
-      observed: `로컬 가상 사건 ${checks.filter(item => item.passed).length}/${checks.length} 통과; 원본에는 기기·네트워크 없음; 운영 사건 전달·심판 미확인` });
+      // node:util을 쓰는 로컬 연습기는 npm run detect:test에서만 실행합니다.
+      observed: 'not_run' });
     results.push({ attackId: 'revocation_and_timing',
       expected: '심판이 특정 가상 기기 실제 회수·경과 시간·정상 기기 유지를 확인',
       observed: '미실행; 회수 API·권한 변경 없음; 실제 회수·시간·정상 기기 운영 유지와 S09_NO_PROPOSAL 해소 미확인' });
   }
   if ([10, 11].includes(config.step)) {
     if (config.restoreRoute !== '/api/notes/restore') throw new Error('복원 경로 설정을 구현과 대조해 주세요.');
-    let observed;
-    try {
-      const response = await fetch(new URL(config.restoreRoute, app), {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
-        headers: { 'Content-Type': 'application/json' }, body: '{}',
-      });
-      observed = `실제 비로그인 POST HTTP ${response.status}; ${response.status === 401 ? '기대 상태 일치' : '기대 상태 불일치'}; 응답 본문 미기록`;
-      await response.body?.cancel();
-    } catch {
-      observed = '비로그인 POST 시도했으나 HTTP 결과 미확인';
-    }
     results.push({ attackId: 'restore_backup_verification',
       expected: '비로그인 복원 401; 안전 사본 재검증·버전·범위 확인 후 B 한 건 복원 및 다른 자료·감사 보존',
-      observed: `${observed}; 실제 안전 사본·정책 복원·B 자료 복원·사본 일치·보존·복구 뒤 1~9단계 재시험 미실행; S10_BACKUP_UNVERIFIED 해소 미확인` });
+      observed: 'not_run' });
   }
   if (config.step === 11) {
     results.push({ attackId: 'authenticated_and_database_checks',
@@ -197,11 +186,15 @@ async function runStep3Checks(config) {
       ['device_status_endpoint', 'GET', '/api/device-approval'],
       ['device_request_endpoint', 'POST', '/api/device-approval'],
     ]) {
+      if (!['GET', 'HEAD'].includes(method)) {
+        results.push({ attackId, expected: '운영 승인 미연결 경로는 503·unavailable·registered:false; 요청 버튼만으로 승인하지 않음',
+          observed: 'not_run' });
+        continue;
+      }
       let observed;
       try {
         const response = await fetch(new URL(path, app), {
           method, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(5000),
-          ...(method === 'POST' ? { headers: { 'Content-Type': 'application/json', Origin: app.origin }, body: '{}' } : {}),
         });
         let data;
         try { data = await response.json(); } catch {}

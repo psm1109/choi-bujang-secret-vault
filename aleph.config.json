@@ -18,5 +18,5 @@
     "DELETE /api/notes/:id"
   ],
   "originalApiUrl": "https://qmajefmoszjutqxwdnzf.supabase.co/rest/v1/learning_notes",
-  "restoreRoute": null
+  "restoreRoute": "/api/notes/restore"
 }

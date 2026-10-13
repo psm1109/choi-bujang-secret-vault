@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if ([3, 4, 5, 6, 7].includes(config.step)) return runStep3Checks(config);
+  if ([3, 4, 5, 6, 7, 8].includes(config.step)) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -111,7 +111,7 @@ async function runStep3Checks(config) {
     expected: '원본 learning_notes API의 anon·authenticated 직접 자료 접근 거부',
     observed: '직접 API 요청 미실행; 사용자 제공 권한 화면에서 anon·authenticated 모두 false, service_role CRUD true 확인. 실제 심판 판정 아님',
   });
-  if (config.step >= 6) {
+  if (config.step >= 6 && config.step !== 8) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
     const { normal, suspicious } = fixtureRequests();
@@ -134,6 +134,31 @@ async function runStep3Checks(config) {
           observed: `로컬 가상 요청 실행: ${response.decision}·${response.reasonCode}; 실제 자료 차단·새 로그인 시각 검증 미실행, 심판 판정 미확인` });
       }
     }
+  }
+  if (config.step === 8) {
+    const { decide } = await import('./decider.mjs');
+    const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
+    const { normal, suspicious } = fixtureRequests();
+    const checks = [
+      ['read', normal, 'allow'],
+      ['update', { ...normal, method: 'PUT', route: 'PUT /notes/:id' }, 'allow'],
+      ['list', { ...normal, path: '/notes', route: 'GET /notes' }, 'deny'],
+      ['device', { ...normal, deviceRegistered: false }, 'deny'],
+      ['step_up', suspicious, 'step_up'],
+      ['reconfirmed', { ...suspicious, stepUp: { verified: true, authAgeSeconds: 60 } }, 'allow'],
+      ...['POST', 'PUT', 'PATCH', 'DELETE'].map(method => [method.toLowerCase(), {
+        ...normal, method, route: `${method} /instructor-notices/:id`,
+        path: normal.path.replace('/notes/', '/instructor-notices/'),
+      }, 'deny']),
+    ];
+    const observations = [];
+    for (const [name, request, expected] of checks) {
+      const response = await decide(request);
+      observations.push(`${name}:${response.decision}${response.decision === expected ? '' : '(불일치)'}`);
+    }
+    results.push({ attackId: 'resource_zone_fixtures',
+      expected: '로컬 단건 읽기·수정 허용, 전체 목록·공지 쓰기·미등록 거부, 복합 추가 확인 및 재확인 허용',
+      observed: `로컬 가상 요청 실행 ${observations.join(', ')}; 운영 연결·심판 미확인` });
   }
   return results;
 }

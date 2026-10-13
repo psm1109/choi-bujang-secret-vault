@@ -84,3 +84,36 @@ test('first attack check reads public data.json without credentials', async () =
     globalThis.fetch = originalFetch;
   }
 });
+
+test('stage 8 bundle checks record actual HTTP statuses and separate bounded local zone practice', async () => {
+  const originalFetch = globalThis.fetch;
+  const config8 = { ...config, step: 8,
+    originalApiUrl: 'https://student.supabase.co/rest/v1/learning_notes',
+    allowedRoutes: ['GET /api/notes/:id', 'PUT /api/notes/:id'] };
+  let actualRequests = 0;
+  try {
+    globalThis.fetch = async (input, init) => {
+      actualRequests++;
+      assert.equal(new Headers(init.headers).has('authorization'), false);
+      const path = new URL(input).pathname;
+      if (path === '/aleph.json') return new Response(JSON.stringify({ ...config8, commit: 'a'.repeat(40) }));
+      if (path === '/') return new Response('<html></html>', { headers: { 'x-content-type-options': 'nosniff' } });
+      return new Response('{}', { status: path === '/data.json' ? 404 : 401 });
+    };
+    const results = await runAttackChecks(config8);
+    assert.equal(actualRequests, 9);
+    assert.ok(results.length <= 20);
+    assert.ok(results.filter(item => item.attackId.startsWith('anonymous_'))
+      .every(item => item.observed.includes('HTTP 401')));
+    const zones = results.find(item => item.attackId === 'resource_zone_fixtures');
+    assert.ok(zones);
+    assert.ok(!zones.observed.includes('불일치'));
+    assert.match(zones.observed, /read:allow, update:allow, list:deny/u);
+    assert.match(zones.observed, /post:deny, put:deny, patch:deny, delete:deny/u);
+    assert.equal(results.find(item => item.attackId === 'cross_owner_access').observed,
+      '미실행; 실제 계정·DB 정책 시험 및 심판 판정 미확인');
+    for (const item of results) assert.ok(item.observed.length <= 300);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

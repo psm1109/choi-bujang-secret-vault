@@ -1,6 +1,33 @@
 # BYTE BACK 방어전 시작 틀 R5
 
-## 현재 7단계 저장점: 평소와 다른 접속은 다시 확인합니다
+## 현재 8단계 저장점: 자료마다 갈 수 있는 구역을 나눕니다
+
+판정기는 등록 기기·확인된 주체·메서드·정확한 단건 UUID 경로를 검사해 메모 읽기와
+수정을 허용합니다. 기존 가상 `/notes/demo` 읽기와 7단계 복합 사건 추가 확인을 유지합니다.
+메모 전체 목록과 쿼리 요청, 알 수 없는 경로, 공지·강사 자료의 모든 쓰기는 거부합니다.
+메모 한 건의 주인 비교는 최종 API가 검증된 로그인 ID와 저장된 owner_id로 수행합니다.
+shared API는 저장된 공지 권한을 확인할 수 없어 403으로 거부하며 본인 메모로 대체하지 않습니다.
+기존 자료·주소·화면 메뉴·서버 로그인과 본인 메모 CRUD는 보존합니다.
+
+편집기의 **터미널**에서 `node --test --test-isolation=none test/decider-input.test.mjs test/decider-unusual-access.test.mjs test/decider-zones.test.mjs test/notes-api.test.mjs`를 실행합니다.
+2026-10-13 로컬 가상 시험 15개와 `npm.cmd run decider:test`의 네 항목이 통과했습니다.
+단건 정상 읽기·수정은 허용, 전체 목록·공지 쓰기는 거부, 타인 메모 직접 API 접근은 404여야 합니다.
+API 목록 주소는 기존대로 보존되지만 판정기를 거친 전체 목록은 거부됩니다.
+변경이 반영된 버전의 **8단계 → 제작 번호 2**로 운영 결과를 별도 확인합니다.
+S08 오류 해소·실제 계정 CRUD·운영 엔진 연결·심판 결과는 미확인입니다.
+
+설정의 step은 8입니다. 배포 주소·로그인 발급자·공개키 주소·대상·원본 API 주소와
+허용 API 경로 6개는 기존 구현·Git origin과 대조해 유지합니다. 허용 경로 목록은
+엔진의 경로 진입 목록이며 판정기의 전체 목록 거부를 대체하지 않습니다. judgeIssuer는 변경하지 않았습니다.
+구현된 RULE_IDS는 starter.deny, device_registered, step_up_required, notes_read,
+notes_update, instructor_notice_update입니다. 자세한 동작은 [구역 규칙](docs/ZONE_RULES.md)에 기록했습니다.
+
+커밋 후 **터미널**에서 `npm.cmd run bundle`을 실행하고 **artifacts → submission.json**을 엽니다.
+자기 점검은 실제 배포에 보낸 비로그인 HTTP 결과와 로컬 구역 가상 요청을 구분하며
+응답 본문·사용자 ID·토큰을 기록하지 않습니다. 실제 A/B CRUD·공지 권한·DB 직접 접근은 미실행으로 남깁니다.
+bundle-notes.json과 artifacts/submission.json은 커밋하지 않습니다. 저장점은 푸시·배포하지 않습니다.
+
+## 과거 7단계 저장점: 평소와 다른 접속은 다시 확인합니다
 
 기존 서버 로그인·세션과 본인 메모 CRUD, 등록 기기 규칙을 유지합니다. 엔진 계약의 출처와 누락·형식을 검사하며 클라이언트 헤더를 접속 근거로 쓰지 않습니다. `judge_fixture` 출처에서 0~5시, `unusual` 네트워크, 최근 60초 안의 `risk_signal` 20건 이상이 함께면 `step_up`·`step_up_required`를 반환하고 정상 사건은 `allow`입니다. 지역 하나만으로 차단하지 않습니다. 재확인 가상 요청은 검증된 로그인 나이가 해당 사건보다 오래되지 않을 때 허용합니다.
 

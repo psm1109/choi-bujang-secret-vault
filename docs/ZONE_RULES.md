@@ -6,11 +6,14 @@
 
 | 구역 규칙 | 정확한 경로·동작 | 결과 |
 | --- | --- | --- |
-| `notes_read` | `GET /api/notes`, `GET /api/notes/<UUID>` | 확인된 주체·등록 기기의 정상 요청 허용 |
+| `notes_read` | `GET /api/notes/<UUID>` | 확인된 주체·등록 기기의 정상 요청 허용 |
 | `notes_update` | `PUT /api/notes/<UUID>` | 같은 조건으로 허용, 최종 API에서 본인 소유 검사 |
 | `instructor_notice_update` | `PUT /api/instructor-notices/<UUID>` | 검증된 강사 권한이 계약에 없어 거부 |
 
-기존 엔진 연습용 `/notes` 접두 경로도 같은 규칙으로 검사합니다. UUID 외 값,
+메모 전체 목록 `GET /notes`와 `GET /api/notes`는 거부합니다. 공지·강사 자료의
+POST·PUT·PATCH·DELETE도 모두 거부합니다.
+기존 엔진 연습용 `/notes` 접두 단건 경로도 같은 규칙으로 검사합니다.
+이전 공개 가상 `/notes/demo`의 정확한 GET만 보존합니다. 그 밖의 UUID 외 값,
 export 같은 기능 이름, 인코딩·추가 깊이·끝 슬래시, 메서드와 route 불일치,
 알 수 없는 경로는 거부합니다. 기능 경로를 `:id`와 같은 깊이에 만들지 않습니다.
 자료 ID는 경로로 선택합니다. 원문 쿼리가 없는 v1 계약에서는 쿼리로 자료 ID와 기능

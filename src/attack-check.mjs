@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if ([3, 4, 5, 6].includes(config.step)) return runStep3Checks(config);
+  if ([3, 4, 5, 6, 7].includes(config.step)) return runStep3Checks(config);
   if (config.step !== 1) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
@@ -58,11 +58,12 @@ async function runStep3Checks(config) {
         });
         if (path === '/aleph.json') {
           const data = await response.json();
-          const matches = response.ok && data.originalApiUrl === config.originalApiUrl
+          const matches = response.ok && data.step === config.step
+            && data.originalApiUrl === config.originalApiUrl
             && JSON.stringify(data.allowedRoutes) === JSON.stringify(config.allowedRoutes);
           results.push({ attackId: 'deployment_config',
             expected: '배포 설정에 쿼리 없는 원본 HTTPS 주소와 허용 자료 경로 6개 포함',
-            observed: `실제 GET /aleph.json HTTP ${response.status}; 설정 ${matches ? '일치' : '불일치'}; 배포 커밋 ${/^[a-f0-9]{40}$/iu.test(data.commit ?? '') ? data.commit : '미확인'}` });
+            observed: `실제 GET /aleph.json HTTP ${response.status}; 설정 ${matches ? '일치' : '불일치'}; 배포 단계 ${Number.isInteger(data.step) ? data.step : '미확인'}; 배포 커밋 ${/^[a-f0-9]{40}$/iu.test(data.commit ?? '') ? data.commit : '미확인'}` });
         } else {
           const html = await response.text();
           results.push({ attackId: 'security_header', expected: '첫 화면 X-Content-Type-Options: nosniff',
@@ -110,10 +111,10 @@ async function runStep3Checks(config) {
     expected: '원본 learning_notes API의 anon·authenticated 직접 자료 접근 거부',
     observed: '직접 API 요청 미실행; 사용자 제공 권한 화면에서 anon·authenticated 모두 false, service_role CRUD true 확인. 실제 심판 판정 아님',
   });
-  if (config.step === 6) {
+  if (config.step >= 6) {
     const { decide } = await import('./decider.mjs');
     const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
-    const { normal } = fixtureRequests();
+    const { normal, suspicious } = fixtureRequests();
     for (const [attackId, registered, expected] of [
       ['registered_device_read', true, '로컬 등록 기기 가상 요청: allow'],
       ['unregistered_device_read', false, '로컬 미등록 기기 가상 요청: deny·device_not_registered'],
@@ -121,6 +122,17 @@ async function runStep3Checks(config) {
       const response = await decide({ ...normal, deviceRegistered: registered });
       results.push({ attackId, expected,
         observed: `로컬 가상 요청 실행: ${response.decision}·${response.reasonCode}; 실제 미등록 기기 공격은 심판 담당, 운영 접속·심판 판정 미확인` });
+    }
+    if (config.step === 7) {
+      for (const [attackId, request, expected] of [
+        ['compound_access_review', suspicious, '로컬 복합 가상 사건: step_up·step_up_required'],
+        ['reconfirmed_fixture_read', { ...suspicious,
+          stepUp: { verified: true, authAgeSeconds: 60 } }, '로컬 재확인 가상 요청: allow·approved'],
+      ]) {
+        const response = await decide(request);
+        results.push({ attackId, expected,
+          observed: `로컬 가상 요청 실행: ${response.decision}·${response.reasonCode}; 실제 자료 차단·새 로그인 시각 검증 미실행, 심판 판정 미확인` });
+      }
     }
   }
   return results;

@@ -29,14 +29,20 @@ export function readDetectionEvents(events) {
 
 export function detect(events) {
   const inputs = readDetectionEvents(events);
+  // 배열 전체가 원본 계약이면 존재하지 않는 확장 필드를 요구하지 않습니다.
+  // 일부만 누락된 확장 사건을 원본 사건으로 낮춰 판정하지 않습니다.
+  const originalInput = inputs.every((input, index) => input.deviceId === undefined
+    && events[index].signals === undefined);
   const subjects = new Map();
   for (let index = 0; index < inputs.length; index += 1) {
     const input = inputs[index];
-    // 확인된 가상 사건의 기기 ID가 없으면 회수 대상을 추측하지 않습니다.
-    if (input.method !== 'GET' || input.deviceId === undefined) continue;
-    const signals = events[index].signals;
-    // 로컬 가상 사건의 명시적 이상 신호만 사용합니다. 지역·헤더는 읽지 않습니다.
-    if (!signals || signals.source !== 'judge_fixture' || signals.network !== 'unusual') continue;
+    if (input.method !== 'GET') continue;
+    if (!originalInput) {
+      // 확장 사건은 확인된 기기와 가상 네트워크 이상이 모두 있어야 합니다.
+      const signals = events[index].signals;
+      if (input.deviceId === undefined || !signals || signals.source !== 'judge_fixture'
+          || signals.network !== 'unusual') continue;
+    }
     const at = events[index].at;
     const utc = typeof at === 'string'
       && /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?Z$/u.exec(at);
@@ -57,6 +63,8 @@ export function detect(events) {
       for (let last = 0; last < times.length; last += 1) {
         while (times[last] - times[first] > 10 * 60 * 1000) first += 1;
         if (last - first + 1 > 120) {
+          // 원본 응답의 세 항목을 유지하며 기기 ID를 임의로 생성하지 않습니다.
+          if (originalInput) return { action: 'propose_revocation', reasonCode: 'burst_read', subject };
           return { action: 'propose_revocation', reasonCode: 'burst_read', subject, deviceId };
         }
       }

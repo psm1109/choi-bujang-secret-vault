@@ -86,3 +86,17 @@ test('proposals identify just one supplied device and never fall back to a user-
   assert.deepEqual(Object.keys(result).sort(), ['action', 'deviceId', 'reasonCode', 'subject']);
   assert.deepEqual(events, snapshot);
 });
+
+test('original contract compatibility never downgrades incomplete or mixed extension events', () => {
+  const original = reads(121).map(({ at, method, identity }) => ({ at, method, identity }));
+  const snapshot = structuredClone(original);
+  assert.deepEqual(detect(original), {
+    action: 'propose_revocation', reasonCode: 'burst_read', subject: 'learner_fixture',
+  });
+  assert.deepEqual(original, snapshot);
+  assert.deepEqual(detect([...original, ...reads(1, { network: 'usual' })]), observe);
+  assert.deepEqual(detect([...original, ...reads(120)]), observe);
+  assert.deepEqual(detect([...original, ...reads(121)]), proposal);
+  assert.deepEqual(detect(original.map(event => ({ ...event, signals: {} }))), observe);
+  assert.deepEqual(detect(original.map(event => ({ ...event, deviceId: 'aaaaaaaaaaaaaaaa' }))), observe);
+});

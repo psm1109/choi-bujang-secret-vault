@@ -20,8 +20,8 @@ test('private and unrelated fields are never read or copied', () => {
   const unreadable = { get() { throw new Error('unexpected_private_field_access'); }, enumerable: true };
   const identity = { sub: 'learner_fixture' };
   Object.defineProperty(identity, 'name', unreadable);
-  const event = { identity, method: 'GET' };
-  for (const field of ['body', 'content', 'memo', 'token', 'access_token', 'name', 'at']) {
+  const event = { identity, method: 'GET', at: '2026-10-01T00:00:00.000Z' };
+  for (const field of ['body', 'content', 'memo', 'token', 'access_token', 'name']) {
     Object.defineProperty(event, field, unreadable);
   }
   assert.deepEqual(readDetectionEvents([event]), [{ subject: 'learner_fixture', method: 'GET' }]);
@@ -33,7 +33,9 @@ test('existing practice events remain valid without inventing device or decision
     at: '2026-10-01T00:00:00.000Z', method: 'GET', identity: { sub: 'learner_fixture' },
   }));
   assert.deepEqual(readDetectionEvents(events)[0], { subject: 'learner_fixture', method: 'GET' });
-  assert.deepEqual(detect(events), { action: 'observe' });
+  assert.deepEqual(detect(events), {
+    action: 'propose_revocation', reasonCode: 'burst_read', subject: 'learner_fixture',
+  });
   assert.deepEqual(readDetectionEvents([]), []);
 });
 

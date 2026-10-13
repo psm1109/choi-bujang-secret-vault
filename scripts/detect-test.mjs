@@ -15,7 +15,23 @@ function reads(count, { intervalSeconds = 2, owner = subject, start = START,
   }));
 }
 
+// 원본 계약의 사건을 그대로 시험합니다. 확장 필드가 없는 사건도 회수 제안을 낼 수 있어야 합니다.
+function originalReads(count, options) {
+  return reads(count, options).map(({ at, method, identity }) => ({ at, method, identity }));
+}
+
 const cases = [
+  { name: '원본 계약·정상 조회 30건', events: originalReads(30), expected: { action: 'observe' } },
+  { name: '원본 계약·10분 안에 120건', events: originalReads(120), expected: { action: 'observe' } },
+  { name: '원본 계약·10분 안에 121건', events: originalReads(121), expected: {
+    action: 'propose_revocation', reasonCode: 'burst_read', subject } },
+  { name: '원본 계약·폭주 조회 200건', events: originalReads(200), expected: {
+    action: 'propose_revocation', reasonCode: 'burst_read', subject } },
+  { name: '원본 계약·서로 다른 사용자 각 100건', events: [...originalReads(100),
+    ...originalReads(100, { owner: 'other_fixture' })].sort((a, b) => a.at.localeCompare(b.at)),
+    expected: { action: 'observe' } },
+  { name: '원본 계약·10분 밖으로 흩어진 조회 200건', events: originalReads(200,
+    { intervalSeconds: 7 }), expected: { action: 'observe' } },
   { name: '정상 조회 30건', events: reads(30), expected: { action: 'observe' } },
   { name: '이상 네트워크·10분 안에 120건', events: reads(120, { network: 'unusual' }), expected: { action: 'observe' } },
   { name: '복합 의심·10분 안에 121건', events: reads(121, { network: 'unusual' }), expected: {
@@ -31,7 +47,7 @@ const cases = [
   { name: '이상 네트워크·정상 조회량', events: reads(30, { network: 'unusual' }), expected: { action: 'observe' } },
   { name: '지역만 다른 다량 조회', events: reads(200).map(event => ({ ...event,
     signals: { ...event.signals, region: 'foreign' } })), expected: { action: 'observe' } },
-  { name: '신호 누락·다량 조회', events: reads(200).map(({ at, method, identity }) => ({ at, method, identity })),
+  { name: '확장 사건·신호 누락·다량 조회', events: reads(200).map(({ signals, ...event }) => event),
     expected: { action: 'observe' } },
   { name: '클라이언트 출처·다량 조회', events: reads(200, { source: 'client', network: 'unusual' }),
     expected: { action: 'observe' } },

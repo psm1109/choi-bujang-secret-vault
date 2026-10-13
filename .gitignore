@@ -2,6 +2,7 @@ artifacts/
 bundle-notes.json
 .env
 .env.*
+private-backups/
 node_modules/
 public/aleph.json
 sql/step-2-learning-notes.local.sql

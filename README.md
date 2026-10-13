@@ -1,5 +1,35 @@
 # BYTE BACK 방어전 시작 틀 R5
 
+## 10단계 제작: 비공개 가상 메모 한 건 복원
+
+서비스는 기존 자료실의 `notes`이며 복원 경로는 **POST `/api/notes/restore`**입니다.
+기존 서비스 주소에 붙이면 `https://choi-bujang-secret-vault-henna.vercel.app/api/notes/restore`입니다.
+이번 경로의 배포·DB 함수 설치·실제 B 계정 복원은 미실행입니다. 설정 단계는 기존 9를 유지하며 운영 엔진 허용 경로를 자동 추가하지 않았습니다.
+
+검증된 로그인 소유자가 서버에 지정한 시험 계정 B와 같을 때만 복원합니다.
+요청 JSON은 `id`, `owner_id`, `contentSha256` 세 항목만 받습니다. 본문은 요청에서 받지 않습니다.
+서버 비공개 사본은 `schema: "aleph.private-note-backup.v1"`과 `notes` 배열이며 각 항목은
+`id`, `owner_id`, `title`, `content`, `contentSha256`을 포함합니다. 내용 해시는 **content의 UTF-8 바이트 SHA-256**이며 제목 해시는 아닙니다.
+사본 전체의 별도 고정 SHA-256으로 사본 무결성을 확인하고 지정 ID가 유일하며 소유자·내용 해시가 일치할 때만 한 건을 복원합니다.
+다른 소유자의 동일 ID는 409로 거부합니다. 다른 메모·기존 감사 기록은 삭제하거나 복원하지 않습니다. 기존 DB 감사 트리거가 새 복원 사건을 추가하는 동작은 유지됩니다.
+
+서버 설정은 공식 **Vercel → Settings → Environment Variables** 비밀 입력란에서 직접 지정합니다:
+`NOTE_RESTORE_TEST_OWNER_ID`(시험 B의 검증된 소유자 ID), `NOTE_RESTORE_BACKUP_PATH`(서버의 비공개 사본 파일),
+`NOTE_RESTORE_BACKUP_SHA256`(침해 전 별도로 검증·보관한 사본 전체 바이트의 SHA-256).
+기존 서버 전용 Supabase 설정을 사용합니다. 사본과 계정 정보는 채팅·Git·public·제출 묶음에 넣지 않습니다.
+`private-backups/`는 Git에서 제외되며 빌드가 사본을 생성하거나 배포하지 않습니다. 서버 파일 제공은 별도 비공개 구성이 필요합니다.
+사본 부재·검증 실패·DB 함수 미설치면 503으로 중단합니다.
+
+공식 **Supabase → SQL Editor**에서 [한 건 복원 함수](sql/restore-test-note.sql)를 검토하고 별도로 적용해야 합니다.
+이는 서비스 전용 역할만 호출할 수 있는 단일 트랜잭션 함수이며 `learning_notes_pkey` 기본키 이름을 전제로 합니다.
+DB 안에서 복원한 ID·소유자·내용 해시를 다시 대조하고 불일치하면 해당 트랜잭션을 실패시킵니다.
+정상 응답은 `{id, owner_id, contentSha256}`이며 사본과 세 값이 같아야 합니다. 메모 본문은 응답·로그에 남기지 않습니다.
+
+편집기 **터미널**에서 `node --test --test-isolation=none test/note-restore.test.mjs`를 실행합니다.
+B 가상 자료의 손상·삭제 복원은 200과 사본 일치, 비로그인은 401, 소유자 불일치는 403,
+ID·해시 불일치·중복 사본·다른 소유자의 ID 충돌은 409, POST 외 메서드는 405여야 합니다.
+이 시험은 가상 인증·DB 대역을 사용하며 실제 B 계정·실제 DB 트랜잭션·운영 심판 결과를 증명하지 않습니다.
+
 ## 현재 9단계 저장점: 도플갱어를 찾고 권한을 거둡니다
 
 기존 서버 로그인·세션, 본인 메모 CRUD, 등록 기기·추가 확인·구역 판정은 유지합니다.

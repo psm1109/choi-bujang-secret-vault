@@ -38,9 +38,13 @@ export function detect(events) {
     // 로컬 가상 사건의 명시적 이상 신호만 사용합니다. 지역·헤더는 읽지 않습니다.
     if (!signals || signals.source !== 'judge_fixture' || signals.network !== 'unusual') continue;
     const at = events[index].at;
-    if (typeof at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(at)) continue;
-    const time = Date.parse(at);
-    if (!Number.isFinite(time) || new Date(time).toISOString() !== at) continue;
+    const utc = typeof at === 'string'
+      && /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?Z$/u.exec(at);
+    if (!utc) continue;
+    // ISO UTC의 초 단위·소수 1~3자리 표기를 같은 시각으로 정규화합니다.
+    const canonicalAt = `${utc[1]}.${(utc[2] ?? '').padEnd(3, '0')}Z`;
+    const time = Date.parse(canonicalAt);
+    if (!Number.isFinite(time) || new Date(time).toISOString() !== canonicalAt) continue;
     if (!subjects.has(input.subject)) subjects.set(input.subject, new Map());
     const devices = subjects.get(input.subject);
     if (!devices.has(input.deviceId)) devices.set(input.deviceId, []);

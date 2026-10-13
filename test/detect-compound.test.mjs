@@ -28,6 +28,20 @@ test('sliding windows handle unordered events, shifted windows and exact time bo
   assert.deepEqual(detect(reads(120)), observe);
 });
 
+test('valid UTC seconds and fractional seconds preserve proposals and normal observations', () => {
+  for (const suffix of ['Z', '.0Z', '.00Z', '.000Z', '.1Z', '.12Z']) {
+    const events = reads(121).map(event => ({ ...event, at: event.at.replace('.000Z', suffix) }));
+    assert.deepEqual(detect(events), proposal);
+    assert.deepEqual(detect(events.slice(0, 120)), observe);
+    assert.deepEqual(detect(events.map(event => ({ ...event,
+      signals: { source: 'judge_fixture', network: 'usual' } }))), observe);
+  }
+  for (const suffix of ['.0000Z', '', '+09:00']) {
+    assert.deepEqual(detect(reads(121).map(event => ({ ...event,
+      at: event.at.replace('.000Z', suffix) }))), observe);
+  }
+});
+
 test('users, devices and usual-network events never pool into an unusual burst', () => {
   assert.deepEqual(detect([...reads(100), ...reads(100, { subject: 'other_fixture' })]), observe);
   assert.deepEqual(detect([...reads(100), ...reads(100, { deviceId: 'bbbbbbbbbbbbbbbb' })]), observe);

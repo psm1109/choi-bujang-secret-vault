@@ -39,12 +39,15 @@
       <h2 id="app-heading">자료실 접속 상태</h2>
       <p id="connection-status" role="status">연결 상태를 확인하는 중입니다.</p>
       <p id="device-status" role="status">기기 승인: 확인 불가 — 서버의 승인 상태 연결이 제공되지 않았습니다.</p>
+      <button id="request-device" type="button" disabled>기기 승인 요청</button>
+      <button id="check-device" type="button" disabled>승인 결과 확인</button>
+      <p id="device-message" role="status">먼저 로그인해 주세요. 서버가 이 기기를 등록 기기로 확인하기 전에는 자료를 표시하지 않습니다.</p>
       <p>기기 승인과 자료 접근은 서버와 판정기가 결정합니다. 로그인하거나 앱을 설치해도 기기 확인이 끝난 것은 아닙니다.</p>
       <p id="install-status" role="status">브라우저 메뉴의 앱 설치 또는 홈 화면에 추가를 이용할 수 있습니다. 지원 여부는 브라우저에 따라 다릅니다.</p>
       <button id="install-app" type="button" hidden>자료실 앱 설치</button>
       <p id="offline-notice" role="status" hidden>오프라인입니다. 자료 조회·저장·기기 승인을 확인할 수 없습니다. 연결을 복구한 뒤 다시 시도해 주세요.</p>
     </section>
-    <div class="notice">로그인하면 자료 목록이 표시됩니다. 로그아웃하면 화면의 자료 목록이 지워집니다.</div>
+    <div class="notice">로그인 후 서버의 등록 기기 확인이 있어야 자료 목록이 표시됩니다. 확인 실패·오프라인·로그아웃 시 화면의 자료를 지웁니다.</div>
     <section class="auth" aria-labelledby="auth-heading">
       <h2 id="auth-heading">자료실 로그인</h2>
       <p id="auth-status" role="status">로그인을 준비하는 중입니다.</p>
@@ -70,6 +73,7 @@
     <ul id="notes" aria-live="polite" hidden></ul>
   </main>
   <script type="module">
+    const { createDeviceAccess } = await import('/device-access.js');
     const form = document.querySelector('#login-form');
     const email = document.querySelector('#email');
     const password = document.querySelector('#password');
@@ -124,7 +128,65 @@
     };
     let visibleUserId = null;
     let notesRequest = null;
+    const deviceStatus = document.querySelector('#device-status');
+    const deviceMessage = document.querySelector('#device-message');
+    const requestDevice = document.querySelector('#request-device');
+    const checkDevice = document.querySelector('#check-device');
+    const deviceLabels = {
+      unverified: '기기 승인: 미확인 — 승인 결과를 다시 확인해 주세요.',
+      login_required: '기기 승인: 로그인 필요',
+      checking: '기기 승인: 서버 확인 중',
+      requesting: '기기 승인: 요청 전송 중',
+      pending: '기기 승인: 대기 중 — 아직 자료를 열 수 없습니다.',
+      denied: '기기 승인: 거부됨 — 자료를 열 수 없습니다.',
+      unregistered: '기기 승인: 미등록 — 승인 요청이 필요합니다.',
+      registered: '기기 승인: 서버가 현재 기기를 등록 기기로 확인했습니다.',
+      unavailable: '기기 승인: 확인 불가 — 서버의 기기 승인 연결을 확인해 주세요.',
+      offline: '기기 승인: 확인 불가 — 오프라인입니다.',
+    };
+    const deviceAccess = createDeviceAccess({ isOnline: () => navigator.onLine !== false, onChange: state => {
+      deviceStatus.textContent = deviceLabels[state];
+      const busy = ['checking', 'requesting'].includes(state);
+      requestDevice.disabled = checkDevice.disabled = busy || !currentSession?.access_token || navigator.onLine === false;
+      deviceMessage.textContent = state === 'unavailable'
+        ? '승인 연결을 사용할 수 없어 요청 접수·승인 여부를 확인하지 못했습니다. 자료는 표시하지 않습니다.'
+        : state === 'registered' ? '등록 기기 확인 후에도 기존 로그인·소유자·자료 접근 검사를 적용합니다.'
+        : '설치나 승인 요청만으로 권한을 부여하지 않습니다. 서버의 등록 확인이 필요합니다.';
+      const allowed = state === 'registered' && Boolean(currentSession?.access_token);
+      editor.hidden = myList.hidden = myHeading.hidden = !allowed;
+      notesRequest?.abort();
+      notesRequest = null;
+      myList.replaceChildren();
+      if (!allowed) { resetEditor(); noteMessage.textContent = ''; }
+      else {
+        notesRequest = new AbortController();
+        void loadNotes(notesRequest, currentSession.access_token);
+      }
+    } });
+    const updateDevice = async method => {
+      const session = await getSession();
+      if (session !== currentSession) return false;
+      return deviceAccess.check(session, method);
+    };
+    requestDevice.addEventListener('click', () => {
+      void updateDevice('POST').catch(() => deviceAccess.invalidate('unavailable'));
+    });
+    checkDevice.addEventListener('click', () => {
+      void updateDevice('GET').catch(() => deviceAccess.invalidate('unavailable'));
+    });
+    window.addEventListener('offline', () => deviceAccess.invalidate('offline'));
+    window.addEventListener('online', () => {
+      void updateDevice('GET').catch(() => deviceAccess.invalidate('unavailable'));
+    });
+    window.addEventListener('pageshow', () => {
+      if (currentSession) void updateDevice('GET').catch(() => deviceAccess.invalidate('unavailable'));
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) deviceAccess.invalidate();
+      else if (currentSession) void updateDevice('GET').catch(() => deviceAccess.invalidate('unavailable'));
+    });
     const loadNotes = async (controller, accessToken) => {
+      if (!deviceAccess.registered) return;
       const list = myList;
       const loading = document.createElement('li');
       loading.textContent = '가상 자료를 불러오는 중입니다.';
@@ -134,10 +196,11 @@
           cache: 'no-store', signal: controller.signal,
           headers: { Authorization: `Bearer ${accessToken}` },
         });
+        if (response.status === 401 || response.status === 403) deviceAccess.invalidate();
         if (response.status === 401) throw new Error('로그인 확인에 실패했습니다. 다시 로그인해 주세요.');
         if (!response.ok) throw new Error('자료를 불러올 수 없습니다. 서버 설정을 확인해 주세요.');
         const data = await response.json();
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || !deviceAccess.registered) return;
         if (!Array.isArray(data)) throw new Error('자료 형식이 맞지 않습니다.');
         if (!data.length) {
           const empty = document.createElement('li');
@@ -184,10 +247,8 @@
     const renderSession = session => {
       currentSession = session;
       const signedIn = Boolean(session?.user && session?.access_token);
-      editor.hidden = !signedIn;
       form.hidden = signedIn;
       logout.hidden = !signedIn;
-      myList.hidden = myHeading.hidden = !signedIn;
       status.textContent = signedIn ? '로그인되었습니다.' : '이메일과 비밀번호로 로그인해 주세요.';
       if (signedIn) password.value = '';
       const userId = session?.user?.id ?? null;
@@ -198,17 +259,15 @@
         notesRequest = null;
         myList.replaceChildren();
         visibleUserId = userId;
-        if (signedIn) {
-          notesRequest = new AbortController();
-          void loadNotes(notesRequest, session.access_token);
-        }
       }
+      deviceAccess.invalidate(signedIn ? 'unverified' : 'login_required');
+      if (signedIn) void deviceAccess.check(session);
     };
     const refreshNotes = () => {
       notesRequest?.abort();
       if (!currentSession?.access_token) return;
       void getSession().then(session => {
-        if (!session) return;
+        if (!session || !deviceAccess.registered) return;
         notesRequest = new AbortController();
         return loadNotes(notesRequest, session.access_token);
       }).catch(error => { noteMessage.textContent = error.message; });
@@ -221,18 +280,22 @@
       try {
         const session = await getSession();
         if (!session || version !== sessionVersion) throw new Error('다시 로그인해 주세요.');
+        if (!await deviceAccess.check(session) || version !== sessionVersion) throw new Error('서버의 등록 기기 확인이 필요합니다.');
+        const deviceRevision = deviceAccess.revision;
         const request = async (path, method = 'GET', payload) => {
+          if (!deviceAccess.registered || deviceRevision !== deviceAccess.revision) throw new Error('기기 상태를 다시 확인해 주세요.');
           const response = await fetch(path, {
             method, cache: 'no-store',
             headers: { Authorization: `Bearer ${session.access_token}`,
               ...(payload ? { 'Content-Type': 'application/json' } : {}) },
             ...(payload ? { body: JSON.stringify(payload) } : {}),
           });
-          if (version !== sessionVersion) throw new Error('로그인 상태가 변경되었습니다.');
+          if (version !== sessionVersion || !deviceAccess.registered || deviceRevision !== deviceAccess.revision) throw new Error('로그인 또는 기기 상태가 변경되었습니다.');
+          if (response.status === 401 || response.status === 403) deviceAccess.invalidate();
           if (!response.ok) throw new Error(response.status === 401 ? '다시 로그인해 주세요.'
             : response.status === 404 ? '메모를 찾을 수 없습니다.' : '메모 작업에 실패했습니다. 입력과 서버 설정을 확인해 주세요.');
           const result = await response.json();
-          if (version !== sessionVersion) throw new Error('로그인 상태가 변경되었습니다.');
+          if (version !== sessionVersion || !deviceAccess.registered || deviceRevision !== deviceAccess.revision) throw new Error('로그인 또는 기기 상태가 변경되었습니다.');
           return result;
         };
         await action(request);

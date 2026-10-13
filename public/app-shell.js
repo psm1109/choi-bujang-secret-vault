@@ -1,7 +1,6 @@
 const installButton = document.querySelector('#install-app');
 const installStatus = document.querySelector('#install-status');
 const connectionStatus = document.querySelector('#connection-status');
-const deviceStatus = document.querySelector('#device-status');
 const offlineNotice = document.querySelector('#offline-notice');
 const standalone = window.matchMedia('(display-mode: standalone)');
 let installPrompt = null;
@@ -12,10 +11,6 @@ function renderConnection() {
     ? '연결: 오프라인'
     : '연결: 네트워크 사용 가능 — 서버 접속 성공을 뜻하지 않습니다.';
   offlineNotice.hidden = !offline;
-  // 로그인·설치·접속 성공으로 기기 등록이나 승인을 추정하지 않습니다.
-  deviceStatus.textContent = offline
-    ? '기기 승인: 확인 불가 — 오프라인입니다.'
-    : '기기 승인: 확인 불가 — 서버의 승인 상태 연결이 제공되지 않았습니다.';
 }
 
 function renderInstallation() {

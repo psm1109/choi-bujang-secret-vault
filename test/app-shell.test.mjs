@@ -15,11 +15,12 @@ function app() {
     addEventListener: (name, callback) => events.set(name, callback) };
   const document = { querySelector: selector => {
     if (!elements.has(selector)) elements.set(selector, {
-      hidden: selector === '#install-app', textContent: '',
+      hidden: selector === '#install-app', textContent: selector === '#device-status' ? '기기 승인: 확인 불가' : '',
       addEventListener(name, callback) { this[name] = callback; },
     });
     return elements.get(selector);
   } };
+  document.querySelector('#device-status');
   // Storage APIs and fetch are deliberately absent: display must not depend on them.
   vm.runInNewContext(source, { window, navigator, document });
   return { events, elements, navigator, standalone };
@@ -39,11 +40,11 @@ test('installation, standalone and offline never report device approval', async 
   assert.match(device.textContent, /기기 승인: 확인 불가/u);
   navigator.onLine = false;
   events.get('offline')();
-  assert.match(device.textContent, /확인 불가.*오프라인/u);
+  assert.match(device.textContent, /기기 승인: 확인 불가/u);
   assert.equal(elements.get('#offline-notice').hidden, false);
   navigator.onLine = true;
   events.get('online')();
-  assert.match(device.textContent, /확인 불가.*연결이 제공되지/u);
+  assert.match(device.textContent, /기기 승인: 확인 불가/u);
   assert.equal(elements.get('#offline-notice').hidden, true);
   const installed = app();
   installed.standalone.matches = true;
